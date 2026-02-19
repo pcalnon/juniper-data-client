@@ -140,54 +140,54 @@ y_train = torch.from_numpy(arrays["y_train"])  # torch.float32
 
 ### JuniperDataClient
 
-| Method | Description |
-|--------|-------------|
-| `health_check()` | Get service health status |
-| `is_ready()` | Check if service is ready (boolean) |
-| `wait_for_ready(timeout)` | Wait for service to become ready |
-| `list_generators()` | List available generators |
-| `get_generator_schema(name)` | Get parameter schema for generator |
-| `create_dataset(generator, params)` | Create dataset with generator |
-| `create_spiral_dataset(**kwargs)` | Convenience method for spiral datasets |
-| `list_datasets(limit, offset)` | List dataset IDs |
-| `get_dataset_metadata(id)` | Get dataset metadata |
-| `download_artifact_npz(id)` | Download NPZ as dict of arrays |
-| `download_artifact_bytes(id)` | Download raw NPZ bytes |
-| `get_preview(id, n)` | Get JSON preview of samples |
-| `delete_dataset(id)` | Delete a dataset |
-| `close()` | Close the client session |
+| Method                              | Description                            |
+| ----------------------------------- | -------------------------------------- |
+| `health_check()`                    | Get service health status              |
+| `is_ready()`                        | Check if service is ready (boolean)    |
+| `wait_for_ready(timeout)`           | Wait for service to become ready       |
+| `list_generators()`                 | List available generators              |
+| `get_generator_schema(name)`        | Get parameter schema for generator     |
+| `create_dataset(generator, params)` | Create dataset with generator          |
+| `create_spiral_dataset(**kwargs)`   | Convenience method for spiral datasets |
+| `list_datasets(limit, offset)`      | List dataset IDs                       |
+| `get_dataset_metadata(id)`          | Get dataset metadata                   |
+| `download_artifact_npz(id)`         | Download NPZ as dict of arrays         |
+| `download_artifact_bytes(id)`       | Download raw NPZ bytes                 |
+| `get_preview(id, n)`                | Get JSON preview of samples            |
+| `delete_dataset(id)`                | Delete a dataset                       |
+| `close()`                           | Close the client session               |
 
 ### Exceptions
 
-| Exception | Description |
-|-----------|-------------|
-| `JuniperDataClientError` | Base exception for all errors |
-| `JuniperDataConnectionError` | Connection to service failed |
-| `JuniperDataTimeoutError` | Request timed out |
-| `JuniperDataNotFoundError` | Resource not found (404) |
-| `JuniperDataValidationError` | Invalid parameters (400/422) |
+| Exception                    | Description                   |
+| ---------------------------- | ----------------------------- |
+| `JuniperDataClientError`     | Base exception for all errors |
+| `JuniperDataConnectionError` | Connection to service failed  |
+| `JuniperDataTimeoutError`    | Request timed out             |
+| `JuniperDataNotFoundError`   | Resource not found (404)      |
+| `JuniperDataValidationError` | Invalid parameters (400/422)  |
 
 ## NPZ Artifact Schema
 
 Downloaded artifacts contain the following numpy arrays (all `float32`):
 
-| Key | Shape | Description |
-|-----|-------|-------------|
-| `X_train` | `(n_train, 2)` | Training features |
-| `y_train` | `(n_train, n_classes)` | Training labels (one-hot) |
-| `X_test` | `(n_test, 2)` | Test features |
-| `y_test` | `(n_test, n_classes)` | Test labels (one-hot) |
-| `X_full` | `(n_total, 2)` | Full dataset features |
-| `y_full` | `(n_total, n_classes)` | Full dataset labels (one-hot) |
+| Key       | Shape                  | Description                   |
+| --------- | ---------------------- | ----------------------------- |
+| `X_train` | `(n_train, 2)`         | Training features             |
+| `y_train` | `(n_train, n_classes)` | Training labels (one-hot)     |
+| `X_test`  | `(n_test, 2)`          | Test features                 |
+| `y_test`  | `(n_test, n_classes)`  | Test labels (one-hot)         |
+| `X_full`  | `(n_total, 2)`         | Full dataset features         |
+| `y_full`  | `(n_total, n_classes)` | Full dataset labels (one-hot) |
 
 ## Configuration
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `base_url` | `http://localhost:8100` | JuniperData service URL |
-| `timeout` | `30` | Request timeout in seconds |
-| `retries` | `3` | Number of retry attempts |
-| `backoff_factor` | `0.5` | Backoff multiplier between retries |
+| Parameter        | Default                 | Description                        |
+| ---------------- | ----------------------- | ---------------------------------- |
+| `base_url`       | `http://localhost:8100` | JuniperData service URL            |
+| `timeout`        | `30`                    | Request timeout in seconds         |
+| `retries`        | `3`                     | Number of retry attempts           |
+| `backoff_factor` | `0.5`                   | Backoff multiplier between retries |
 
 ## Requirements
 
