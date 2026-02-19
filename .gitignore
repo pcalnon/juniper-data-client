@@ -9,7 +9,9 @@ build/
 .pytest_cache/
 .coverage
 htmlcov/
+results.xml
 *.log
 .venv/
 venv/
 .env
+__RESUME_CLAUDE_SESSION__
