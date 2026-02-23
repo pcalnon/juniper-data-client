@@ -200,8 +200,12 @@ Downloaded artifacts contain the following numpy arrays (all `float32`):
 
 MIT License - Copyright (c) 2024-2026 Paul Calnon
 
-## See Also
+## Juniper Ecosystem
 
-- [JuniperData](https://github.com/pcalnon/Juniper/tree/main/JuniperData)
-- [JuniperCascor](https://github.com/pcalnon/Juniper/tree/main/JuniperCascor)
-- [JuniperCanopy](https://github.com/pcalnon/Juniper/tree/main/JuniperCanopy)
+This package is part of the Juniper Cascade Correlation Neural Network Research Platform.
+
+| Package | Description | Install |
+|---------|-------------|---------|
+| [juniper-data-client](https://github.com/pcalnon/juniper-data-client) | Dataset service client (this package) | `pip install juniper-data-client` |
+| [juniper-cascor-client](https://github.com/pcalnon/juniper-cascor-client) | Neural network service client | `pip install juniper-cascor-client` |
+| [juniper-cascor-worker](https://github.com/pcalnon/juniper-cascor-worker) | Distributed training worker | `pip install juniper-cascor-worker` |
