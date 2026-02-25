@@ -1,1 +1,5 @@
-/home/pcalnon/Development/python/Juniper/JuniperCascor/juniper_cascor/notes/POLYREPO_MIGRATION_PLAN.md
+# Polyrepo Migration Plan
+
+> **Redirect**: This document's canonical copy lives in the `juniper-cascor` repository.
+>
+> See: [`pcalnon/juniper-cascor` → `notes/POLYREPO_MIGRATION_PLAN.md`](https://github.com/pcalnon/juniper-cascor/blob/main/notes/POLYREPO_MIGRATION_PLAN.md)
