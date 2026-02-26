@@ -362,3 +362,37 @@ jobs:
           fi
 
           echo "::notice::Quality Gate PASSED"
+
+  # ═══════════════════════════════════════════════════════════════════════════════════════════════
+  # Notify Downstream: Trigger CI in dependent service repos (main push only)
+  # ═══════════════════════════════════════════════════════════════════════════════════════════════
+  notify-downstream:
+    name: Notify Downstream Repos
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [required-checks]
+
+    steps:
+      - name: Dispatch to juniper-data
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/pcalnon/juniper-data/dispatches \
+            -d '{"event_type":"data-client-updated","client_payload":{"source":"juniper-data-client","sha":"${{ github.sha }}"}}'
+
+      - name: Dispatch to juniper-cascor
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/pcalnon/juniper-cascor/dispatches \
+            -d '{"event_type":"data-client-updated","client_payload":{"source":"juniper-data-client","sha":"${{ github.sha }}"}}'
+
+      - name: Dispatch to juniper-canopy
+        run: |
+          curl -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}" \
+            https://api.github.com/repos/pcalnon/juniper-canopy/dispatches \
+            -d '{"event_type":"data-client-updated","client_payload":{"source":"juniper-data-client","sha":"${{ github.sha }}"}}'
