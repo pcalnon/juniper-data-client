@@ -4,7 +4,7 @@ Python client library for the JuniperData REST API.
 
 ## Overview
 
-`juniper-data-client` provides a simple, robust client for interacting with the JuniperData dataset generation service. It is the official client library used by both JuniperCascor (neural network backend) and JuniperCanopy (web dashboard).
+`juniper-data-client` provides a simple, robust client for interacting with the JuniperData dataset generation service. It is the official client library used by both JuniperCascor (neural network backend) and juniper-canopy (web dashboard).
 
 ## Ecosystem Compatibility
 

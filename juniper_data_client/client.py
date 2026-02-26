@@ -1,7 +1,7 @@
 """REST API client for JuniperData service integration.
 
 Provides dataset creation, artifact download, and preview functionality
-for JuniperCascor and JuniperCanopy applications.
+for JuniperCascor and juniper-canopy applications.
 """
 
 import io
