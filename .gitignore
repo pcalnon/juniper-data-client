@@ -14,4 +14,9 @@ results.xml
 .venv/
 venv/
 .env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
 __RESUME_CLAUDE_SESSION__
