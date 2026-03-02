@@ -200,7 +200,7 @@ Downloaded artifacts contain the following numpy arrays (all `float32`):
 
 ## Requirements
 
-- Python >=3.11
+- Python >=3.12
 - numpy >=1.24.0
 - requests >=2.28.0
 - urllib3 >=2.0.0
