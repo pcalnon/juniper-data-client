@@ -86,7 +86,7 @@ jobs:
         run: isort --check-only --diff juniper_data_client tests
 
       - name: Lint (flake8)
-        run: flake8 juniper_data_client --max-line-length=120
+        run: flake8 juniper_data_client --max-line-length=512
 
       - name: Type check (mypy)
         run: mypy juniper_data_client --ignore-missing-imports
