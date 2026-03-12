@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "juniper-data-client"
-version = "0.3.1"
+version = "0.3.2"
 description = "HTTP client for the JuniperData dataset generation service"
 readme = "README.md"
 license = "MIT"
@@ -67,7 +67,8 @@ include = '\.pyi?$'
 
 [tool.isort]
 profile = "black"
-line_length = 512
+line_length = 512D
+
 known_first_party = ["juniper_data_client"]
 
 [tool.mypy]
