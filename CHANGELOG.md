@@ -7,18 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+## [0.3.2] - 2026-03-03
 
-- Hardened CI pipeline: added security scans (Bandit, pip-audit), build verification
-  (`python -m build` + `twine check`), quality gate aggregator, `workflow_dispatch` trigger,
-  and expanded Python matrix to 3.12/3.13/3.14
-- SHA-pinned all GitHub Actions to immutable commit hashes
+**Summary**: Security hardening — build attestations enabled and scheduled security scanning. Also includes previously unreleased CI/CD improvements.
 
-### Added
+### Security: [0.3.2]
 
+- Enabled build attestations in publish workflow (`attestations: true`)
+
+### Added: [0.3.2]
+
+- `.github/workflows/security-scan.yml` — Weekly scheduled security scanning (Bandit, pip-audit)
 - Dependabot configuration for automated dependency updates
 - CODEOWNERS file for PR review routing
 - This CHANGELOG
+
+### Changed: [0.3.2]
+
+- Hardened CI pipeline: added security scans (Bandit, pip-audit), build verification, quality gate, Python 3.12/3.13/3.14 matrix
+- SHA-pinned all GitHub Actions to immutable commit hashes
+
+### Technical Notes: [0.3.2]
+
+- **SemVer impact**: PATCH — CI/CD and supply chain improvements only; no API changes
+- **Test count**: 88 passed, 0 failed
+- **Part of**: Cross-ecosystem security audit (7 repos, 24 findings)
 
 ## [0.3.1] - 2026-02-23
 
@@ -47,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PyPI and TestPyPI trusted publishing
 - README with API documentation and examples
 
-[Unreleased]: https://github.com/pcalnon/juniper-data-client/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/pcalnon/juniper-data-client/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/pcalnon/juniper-data-client/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/pcalnon/juniper-data-client/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/pcalnon/juniper-data-client/releases/tag/v0.3.0
