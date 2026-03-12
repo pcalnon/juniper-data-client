@@ -11,15 +11,7 @@ import pytest
 import requests
 import responses
 
-from juniper_data_client import (
-    JuniperDataClient,
-    JuniperDataClientError,
-    JuniperDataConfigurationError,
-    JuniperDataConnectionError,
-    JuniperDataNotFoundError,
-    JuniperDataTimeoutError,
-    JuniperDataValidationError,
-)
+from juniper_data_client import JuniperDataClient, JuniperDataClientError, JuniperDataConfigurationError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
 
 class TestUrlNormalization:

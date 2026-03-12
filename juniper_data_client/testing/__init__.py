@@ -34,12 +34,7 @@ Usage::
 """
 
 from juniper_data_client.testing.fake_client import FakeDataClient
-from juniper_data_client.testing.generators import (
-    generate_circle,
-    generate_moon,
-    generate_spiral,
-    generate_xor,
-)
+from juniper_data_client.testing.generators import generate_circle, generate_moon, generate_spiral, generate_xor
 
 __all__ = [
     "FakeDataClient",

@@ -33,17 +33,9 @@ from typing import Any, Dict
 import numpy as np
 import pytest
 
-from juniper_data_client.exceptions import (
-    JuniperDataNotFoundError,
-    JuniperDataValidationError,
-)
+from juniper_data_client.exceptions import JuniperDataNotFoundError, JuniperDataValidationError
 from juniper_data_client.testing import FakeDataClient
-from juniper_data_client.testing.generators import (
-    generate_circle,
-    generate_moon,
-    generate_spiral,
-    generate_xor,
-)
+from juniper_data_client.testing.generators import generate_circle, generate_moon, generate_spiral, generate_xor
 
 # ======================================================================
 # Standard NPZ keys used by the Juniper data contract
@@ -344,19 +336,13 @@ class TestArtifactDownload:
         n_features_test = arrays["X_test"].shape[1]
         n_features_full = arrays["X_full"].shape[1]
 
-        assert n_features_train == n_features_test == n_features_full, (
-            f"Feature dimensions inconsistent: train={n_features_train}, "
-            f"test={n_features_test}, full={n_features_full}"
-        )
+        assert n_features_train == n_features_test == n_features_full, f"Feature dimensions inconsistent: train={n_features_train}, " f"test={n_features_test}, full={n_features_full}"
 
         n_classes_train = arrays["y_train"].shape[1]
         n_classes_test = arrays["y_test"].shape[1]
         n_classes_full = arrays["y_full"].shape[1]
 
-        assert n_classes_train == n_classes_test == n_classes_full, (
-            f"Class dimensions inconsistent: train={n_classes_train}, "
-            f"test={n_classes_test}, full={n_classes_full}"
-        )
+        assert n_classes_train == n_classes_test == n_classes_full, f"Class dimensions inconsistent: train={n_classes_train}, " f"test={n_classes_test}, full={n_classes_full}"
 
     def test_download_artifact_bytes_returns_valid_npz(self, fake_client: FakeDataClient) -> None:
         """download_artifact_bytes() returns bytes that can be loaded as a valid NPZ file."""
@@ -431,19 +417,14 @@ class TestDataContract:
 
     def test_train_test_split_ratio(self, fake_client: FakeDataClient) -> None:
         """Default train/test split is approximately 80/20."""
-        result = fake_client.create_dataset(
-            "spiral", {"n_spirals": 2, "n_points_per_spiral": 100, "seed": 42}
-        )
+        result = fake_client.create_dataset("spiral", {"n_spirals": 2, "n_points_per_spiral": 100, "seed": 42})
         arrays = fake_client.download_artifact_npz(result["dataset_id"])
 
         n_train = arrays["X_train"].shape[0]
         n_full = arrays["X_full"].shape[0]
         actual_ratio = n_train / n_full
 
-        assert 0.75 <= actual_ratio <= 0.85, (
-            f"Train ratio {actual_ratio:.3f} outside expected range [0.75, 0.85] "
-            f"(n_train={n_train}, n_full={n_full})"
-        )
+        assert 0.75 <= actual_ratio <= 0.85, f"Train ratio {actual_ratio:.3f} outside expected range [0.75, 0.85] " f"(n_train={n_train}, n_full={n_full})"
 
     def test_full_dataset_is_union_of_train_test(self, fake_client: FakeDataClient) -> None:
         """X_full/y_full contain the same number of samples as X_train + X_test."""
@@ -454,18 +435,14 @@ class TestDataContract:
         n_test = arrays["X_test"].shape[0]
         n_full = arrays["X_full"].shape[0]
 
-        assert n_full == n_train + n_test, (
-            f"X_full ({n_full}) != X_train ({n_train}) + X_test ({n_test})"
-        )
+        assert n_full == n_train + n_test, f"X_full ({n_full}) != X_train ({n_train}) + X_test ({n_test})"
 
         # Same check for labels
         n_y_train = arrays["y_train"].shape[0]
         n_y_test = arrays["y_test"].shape[0]
         n_y_full = arrays["y_full"].shape[0]
 
-        assert n_y_full == n_y_train + n_y_test, (
-            f"y_full ({n_y_full}) != y_train ({n_y_train}) + y_test ({n_y_test})"
-        )
+        assert n_y_full == n_y_train + n_y_test, f"y_full ({n_y_full}) != y_train ({n_y_train}) + y_test ({n_y_test})"
 
     def test_y_arrays_are_one_hot_encoded(self, fake_client: FakeDataClient) -> None:
         """Label arrays are one-hot encoded: each row sums to 1.0 with values in {0, 1}."""
@@ -484,9 +461,7 @@ class TestDataContract:
             )
             # Values should be 0.0 or 1.0 only
             unique_values = set(np.unique(y).tolist())
-            assert unique_values <= {0.0, 1.0}, (
-                f"{key} contains values other than 0.0 and 1.0: {unique_values}"
-            )
+            assert unique_values <= {0.0, 1.0}, f"{key} contains values other than 0.0 and 1.0: {unique_values}"
 
     def test_spiral_two_classes_for_two_spirals(self, fake_client: FakeDataClient) -> None:
         """A 2-spiral dataset produces labels with exactly 2 classes."""
@@ -590,7 +565,4 @@ class TestGenerators:
         }
         for gen_name, arrays in generators.items():
             for key in _NPZ_KEYS:
-                assert arrays[key].dtype == np.float32, (
-                    f"Generator '{gen_name}', array '{key}' has dtype "
-                    f"{arrays[key].dtype}, expected float32"
-                )
+                assert arrays[key].dtype == np.float32, f"Generator '{gen_name}', array '{key}' has dtype " f"{arrays[key].dtype}, expected float32"

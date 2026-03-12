@@ -81,6 +81,7 @@ NPZ artifacts with keys: `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_
 Git worktrees allow multiple branches of a repository to be checked out simultaneously in separate directories. For the Juniper ecosystem, all worktrees are centralized in **`/home/pcalnon/Development/python/Juniper/worktrees/`** using a standardized naming convention.
 
 The full setup and cleanup procedures are defined in:
+
 - **`notes/WORKTREE_SETUP_PROCEDURE.md`** — Creating a worktree for a new task
 - **`notes/WORKTREE_CLEANUP_PROCEDURE.md`** — Merging, removing, and pushing after task completion
 
@@ -108,6 +109,7 @@ Example: `juniper-data-client--feature--add-retry--20260225-1430--73294fc1`
 ### Quick Reference
 
 **Setup** (full procedure in `notes/WORKTREE_SETUP_PROCEDURE.md`):
+
 ```bash
 cd /home/pcalnon/Development/python/Juniper/juniper-data-client
 git fetch origin && git checkout main && git pull origin main
@@ -121,6 +123,7 @@ cd "$WORKTREE_DIR"
 ```
 
 **Cleanup** (full procedure in `notes/WORKTREE_CLEANUP_PROCEDURE.md`):
+
 ```bash
 cd "$WORKTREE_DIR" && git push origin "$BRANCH_NAME"
 cd /home/pcalnon/Development/python/Juniper/juniper-data-client

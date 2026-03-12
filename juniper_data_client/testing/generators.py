@@ -212,15 +212,19 @@ def generate_circle(
     inner_x = factor * np.cos(inner_angles) + rng.normal(0, noise, n_inner)
     inner_y = factor * np.sin(inner_angles) + rng.normal(0, noise, n_inner)
 
-    X = np.vstack([
-        np.column_stack([inner_x, inner_y]),
-        np.column_stack([outer_x, outer_y]),
-    ]).astype(np.float32)
+    X = np.vstack(
+        [
+            np.column_stack([inner_x, inner_y]),
+            np.column_stack([outer_x, outer_y]),
+        ]
+    ).astype(np.float32)
 
-    labels = np.concatenate([
-        np.zeros(n_inner, dtype=np.int64),
-        np.ones(n_outer, dtype=np.int64),
-    ])
+    labels = np.concatenate(
+        [
+            np.zeros(n_inner, dtype=np.int64),
+            np.ones(n_outer, dtype=np.int64),
+        ]
+    )
 
     y_one_hot = _one_hot_encode(labels, 2)
     return _split_dataset(X, y_one_hot, train_ratio, rng)
@@ -262,15 +266,19 @@ def generate_moon(
     lower_x = 1.0 - np.cos(lower_angles) + rng.normal(0, noise, n_lower)
     lower_y = 1.0 - np.sin(lower_angles) - 0.5 + rng.normal(0, noise, n_lower)
 
-    X = np.vstack([
-        np.column_stack([upper_x, upper_y]),
-        np.column_stack([lower_x, lower_y]),
-    ]).astype(np.float32)
+    X = np.vstack(
+        [
+            np.column_stack([upper_x, upper_y]),
+            np.column_stack([lower_x, lower_y]),
+        ]
+    ).astype(np.float32)
 
-    labels = np.concatenate([
-        np.zeros(n_upper, dtype=np.int64),
-        np.ones(n_lower, dtype=np.int64),
-    ])
+    labels = np.concatenate(
+        [
+            np.zeros(n_upper, dtype=np.int64),
+            np.ones(n_lower, dtype=np.int64),
+        ]
+    )
 
     y_one_hot = _one_hot_encode(labels, 2)
     return _split_dataset(X, y_one_hot, train_ratio, rng)

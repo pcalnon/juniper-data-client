@@ -71,7 +71,7 @@ line_length = 512
 known_first_party = ["juniper_data_client"]
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.12"
 warn_return_any = false
 warn_unused_configs = true
 ignore_missing_imports = false
@@ -121,4 +121,3 @@ exclude_lines = [
 ]
 show_missing = true
 precision = 2
-

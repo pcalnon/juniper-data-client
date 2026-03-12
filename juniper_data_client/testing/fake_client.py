@@ -43,16 +43,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
-from juniper_data_client.exceptions import (
-    JuniperDataNotFoundError,
-    JuniperDataValidationError,
-)
-from juniper_data_client.testing.generators import (
-    generate_circle,
-    generate_moon,
-    generate_spiral,
-    generate_xor,
-)
+from juniper_data_client.exceptions import JuniperDataNotFoundError, JuniperDataValidationError
+from juniper_data_client.testing.generators import generate_circle, generate_moon, generate_spiral, generate_xor
 
 # ---------------------------------------------------------------------------
 # Generator catalog — mirrors the real JuniperData /v1/generators response
