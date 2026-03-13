@@ -67,7 +67,8 @@ include = '\.pyi?$'
 
 [tool.isort]
 profile = "black"
-line_length = 512D
+# line_length = 320
+line_length = 512
 
 known_first_party = ["juniper_data_client"]
 
