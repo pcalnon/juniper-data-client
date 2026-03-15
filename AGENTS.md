@@ -1,7 +1,7 @@
 # juniper-data-client - Agent Development Guide
 
 **Project**: juniper-data-client — HTTP Client for JuniperData
-**Version**: 0.3.1
+**Version**: 0.3.2
 **License**: MIT License
 **Author**: Paul Calnon
 **Last Updated**: 2026-02-20
