@@ -43,11 +43,6 @@
 | **DOCUMENTATION_OVERVIEW.md** | ~120 | Overview | This file -- navigation index |
 | **QUICK_START.md** | ~130 | Tutorial | Install, configure, and use in 5 minutes |
 | **REFERENCE.md** | ~260 | Reference | Complete API, configuration, and exception reference |
-
-### notes/ Directory
-
-| File | Lines | Type | Purpose |
-|------|-------|------|---------|
 | **DEVELOPER_CHEATSHEET.md** | ~100 | Cheatsheet | Quick-reference card for common development tasks |
 
 ### Root Directory
@@ -105,3 +100,5 @@ juniper-ml ──meta-package──> juniper-data-client
 **Last Updated:** March 3, 2026
 **Version:** 0.3.1
 **Maintainer:** Paul Calnon
+
+> See the [Juniper Ecosystem Guide](../../CLAUDE.md) for the full project map and dependency graph.
