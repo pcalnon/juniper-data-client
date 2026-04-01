@@ -93,6 +93,7 @@ addopts = ["-ra", "-q", "--strict-markers"]
 markers = [
     "unit: Unit tests",
     "integration: Integration tests requiring live service",
+    "performance: Performance benchmark tests",
 ]
 timeout = 30
 
