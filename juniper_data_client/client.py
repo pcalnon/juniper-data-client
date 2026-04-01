@@ -388,6 +388,74 @@ class JuniperDataClient:
 
         return self.create_dataset("spiral", params)
 
+    # ─── Batch Operations ────────────────────────────────────────────────
+
+    def batch_delete(self, dataset_ids: List[str]) -> Dict[str, Any]:
+        """Delete multiple datasets in a single request.
+
+        Args:
+            dataset_ids: List of dataset IDs to delete (1-100).
+
+        Returns:
+            Dictionary with deleted, not_found, and total_deleted.
+        """
+        response = self._request("POST", "/v1/datasets/batch-delete", json={"dataset_ids": dataset_ids})
+        return response.json()
+
+    def batch_create(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Create multiple datasets in a single request.
+
+        Each item should have 'generator' and 'params' keys, and optionally
+        'persist', 'tags', and 'ttl_seconds'.
+
+        Args:
+            datasets: List of dataset specifications (1-50).
+
+        Returns:
+            Dictionary with results, total_created, and total_failed.
+        """
+        response = self._request("POST", "/v1/datasets/batch-create", json={"datasets": datasets})
+        return response.json()
+
+    def batch_update_tags(
+        self,
+        dataset_ids: List[str],
+        add_tags: Optional[List[str]] = None,
+        remove_tags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Add or remove tags from multiple datasets.
+
+        Args:
+            dataset_ids: List of dataset IDs to update (1-100).
+            add_tags: Tags to add to all specified datasets.
+            remove_tags: Tags to remove from all specified datasets.
+
+        Returns:
+            Dictionary with updated, not_found, and total_updated.
+        """
+        payload: Dict[str, Any] = {"dataset_ids": dataset_ids}
+        if add_tags:
+            payload["add_tags"] = add_tags
+        if remove_tags:
+            payload["remove_tags"] = remove_tags
+        response = self._request("PATCH", "/v1/datasets/batch-tags", json=payload)
+        return response.json()
+
+    def batch_export(self, dataset_ids: List[str]) -> bytes:
+        """Export multiple datasets as a ZIP archive of NPZ files.
+
+        Args:
+            dataset_ids: List of dataset IDs to export (1-50).
+
+        Returns:
+            Raw bytes of the ZIP archive.
+
+        Raises:
+            JuniperDataNotFoundError: If none of the datasets exist.
+        """
+        response = self._request("POST", "/v1/datasets/batch-export", json={"dataset_ids": dataset_ids})
+        return response.content
+
     def close(self) -> None:
         """Close the client session and release resources."""
         self.session.close()

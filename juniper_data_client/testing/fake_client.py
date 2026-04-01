@@ -493,6 +493,128 @@ class FakeDataClient:
         }
 
     # ------------------------------------------------------------------
+    # Batch operations
+    # ------------------------------------------------------------------
+
+    def batch_delete(self, dataset_ids: List[str]) -> Dict[str, Any]:
+        """Delete multiple datasets from the in-memory store.
+
+        Args:
+            dataset_ids: List of dataset IDs to delete.
+
+        Returns:
+            Dictionary with deleted, not_found, and total_deleted.
+        """
+        deleted: List[str] = []
+        not_found: List[str] = []
+        for dataset_id in dataset_ids:
+            if dataset_id in self._datasets:
+                del self._datasets[dataset_id]
+                deleted.append(dataset_id)
+            else:
+                not_found.append(dataset_id)
+        return {"deleted": deleted, "not_found": not_found, "total_deleted": len(deleted)}
+
+    def batch_create(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Create multiple datasets in the in-memory store.
+
+        Args:
+            datasets: List of dataset specifications with generator and params.
+
+        Returns:
+            Dictionary with results, total_created, and total_failed.
+        """
+        results: List[Dict[str, Any]] = []
+        total_created = 0
+        total_failed = 0
+
+        for idx, item in enumerate(datasets):
+            try:
+                resp = self.create_dataset(
+                    generator=item["generator"],
+                    params=item.get("params", {}),
+                    persist=item.get("persist", True),
+                )
+                results.append({
+                    "index": idx,
+                    "dataset_id": resp["dataset_id"],
+                    "generator": item["generator"],
+                    "success": True,
+                    "artifact_url": f"/v1/datasets/{resp['dataset_id']}/artifact",
+                })
+                total_created += 1
+            except Exception as e:
+                results.append({
+                    "index": idx,
+                    "generator": item.get("generator", "unknown"),
+                    "success": False,
+                    "error": str(e),
+                })
+                total_failed += 1
+
+        return {"results": results, "total_created": total_created, "total_failed": total_failed}
+
+    def batch_update_tags(
+        self,
+        dataset_ids: List[str],
+        add_tags: Optional[List[str]] = None,
+        remove_tags: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """Add or remove tags from multiple datasets.
+
+        Args:
+            dataset_ids: List of dataset IDs to update.
+            add_tags: Tags to add.
+            remove_tags: Tags to remove.
+
+        Returns:
+            Dictionary with updated, not_found, and total_updated.
+        """
+        updated: List[str] = []
+        not_found: List[str] = []
+        for dataset_id in dataset_ids:
+            if dataset_id not in self._datasets:
+                not_found.append(dataset_id)
+                continue
+            meta = self._datasets[dataset_id]["metadata"]
+            current_tags = set(meta.get("tags", []))
+            if add_tags:
+                current_tags.update(add_tags)
+            if remove_tags:
+                current_tags -= set(remove_tags)
+            meta["tags"] = sorted(current_tags)
+            updated.append(dataset_id)
+        return {"updated": updated, "not_found": not_found, "total_updated": len(updated)}
+
+    def batch_export(self, dataset_ids: List[str]) -> bytes:
+        """Export multiple datasets as a ZIP archive of NPZ files.
+
+        Args:
+            dataset_ids: List of dataset IDs to export.
+
+        Returns:
+            Raw bytes of the ZIP archive.
+
+        Raises:
+            JuniperDataNotFoundError: If none of the datasets exist.
+        """
+        import zipfile
+
+        buf = io.BytesIO()
+        found = 0
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for dataset_id in dataset_ids:
+                if dataset_id in self._datasets:
+                    arrays = self._datasets[dataset_id]["arrays"]
+                    npz_buf = io.BytesIO()
+                    np.savez(npz_buf, **arrays)
+                    zf.writestr(f"{dataset_id}.npz", npz_buf.getvalue())
+                    found += 1
+        if found == 0:
+            raise JuniperDataNotFoundError("None of the requested datasets were found")
+        return buf.getvalue()
+
+    # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
