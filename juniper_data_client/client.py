@@ -227,7 +227,16 @@ class JuniperDataClient:
         response = self._request("GET", f"/v1/generators/{name}/schema")
         return response.json()
 
-    def create_dataset(self, generator: str, params: Dict[str, Any], persist: bool = True) -> Dict[str, Any]:
+    def create_dataset(
+        self,
+        generator: str,
+        params: Dict[str, Any],
+        persist: bool = True,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        created_by: Optional[str] = None,
+        parent_dataset_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Create a new dataset via the JuniperData API.
 
         If a dataset with the same parameters already exists, the existing
@@ -237,6 +246,11 @@ class JuniperDataClient:
             generator: Name of the dataset generator to use (e.g., "spiral")
             params: Parameters to pass to the generator
             persist: Whether to persist the dataset (default: True)
+            name: Optional dataset name for versioning. When provided, the service
+                automatically assigns an incrementing version number.
+            description: Optional human-readable description of the dataset.
+            created_by: Optional identifier for the creator (user or system).
+            parent_dataset_id: Optional ID of the parent dataset this was derived from.
 
         Returns:
             Parsed JSON response containing dataset_id, generator, meta, and artifact_url
@@ -245,13 +259,48 @@ class JuniperDataClient:
             JuniperDataValidationError: If parameters are invalid
             JuniperDataNotFoundError: If generator not found
         """
-        payload = {
+        payload: Dict[str, Any] = {
             "generator": generator,
             "params": params,
             "persist": persist,
         }
+        if name is not None:
+            payload["name"] = name
+        if description is not None:
+            payload["description"] = description
+        if created_by is not None:
+            payload["created_by"] = created_by
+        if parent_dataset_id is not None:
+            payload["parent_dataset_id"] = parent_dataset_id
 
         response = self._request("POST", "/v1/datasets", json=payload)
+        return response.json()
+
+    def list_versions(self, name: str) -> Dict[str, Any]:
+        """List all versions of a named dataset.
+
+        Args:
+            name: Dataset name to list versions for.
+
+        Returns:
+            Dict with dataset_name, versions list, total count, and latest_version.
+        """
+        response = self._request("GET", "/v1/datasets/versions", params={"name": name})
+        return response.json()
+
+    def get_latest(self, name: str) -> Dict[str, Any]:
+        """Get the latest version of a named dataset.
+
+        Args:
+            name: Dataset name to get latest version of.
+
+        Returns:
+            Dataset metadata for the latest version.
+
+        Raises:
+            JuniperDataNotFoundError: If no versions exist for the given name.
+        """
+        response = self._request("GET", "/v1/datasets/latest", params={"name": name})
         return response.json()
 
     def list_datasets(self, limit: int = 100, offset: int = 0) -> List[str]:

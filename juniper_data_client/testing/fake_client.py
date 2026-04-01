@@ -196,6 +196,7 @@ class FakeDataClient:
         self.base_url = base_url
         self.api_key = api_key
         self._datasets: Dict[str, Dict[str, Any]] = {}
+        self._version_counters: Dict[str, int] = {}
         self._closed = False
 
     # ------------------------------------------------------------------
@@ -267,7 +268,16 @@ class FakeDataClient:
     # Dataset creation
     # ------------------------------------------------------------------
 
-    def create_dataset(self, generator: str, params: Dict[str, Any], persist: bool = True) -> Dict[str, Any]:
+    def create_dataset(
+        self,
+        generator: str,
+        params: Dict[str, Any],
+        persist: bool = True,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        created_by: Optional[str] = None,
+        parent_dataset_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Create a synthetic dataset using an in-memory generator.
 
         Args:
@@ -275,6 +285,11 @@ class FakeDataClient:
             params: Parameters forwarded to the generator function. Unknown keys are silently
                 ignored to match the real service behavior.
             persist: Accepted for API compatibility; has no effect in the fake.
+            name: Optional dataset name for versioning. When provided, the fake
+                automatically assigns an incrementing version number.
+            description: Optional human-readable description of the dataset.
+            created_by: Optional identifier for the creator (user or system).
+            parent_dataset_id: Optional ID of the parent dataset this was derived from.
 
         Returns:
             Dictionary with ``dataset_id``, ``generator``, ``params``, ``meta``, and ``artifact_url``.
@@ -303,19 +318,34 @@ class FakeDataClient:
         n_features = arrays["X_train"].shape[1]
         n_classes = arrays["y_train"].shape[1]
 
+        meta: Dict[str, Any] = {
+            "n_train": n_train,
+            "n_test": n_test,
+            "n_full": n_full,
+            "n_features": n_features,
+            "n_classes": n_classes,
+            "dtype": "float32",
+            "created_at": now,
+        }
+
+        # Versioning fields — only populated when a name is provided
+        if name is not None:
+            version_num = self._version_counters.get(name, 0) + 1
+            self._version_counters[name] = version_num
+            meta["dataset_name"] = name
+            meta["dataset_version"] = version_num
+        if description is not None:
+            meta["description"] = description
+        if created_by is not None:
+            meta["created_by"] = created_by
+        if parent_dataset_id is not None:
+            meta["parent_dataset_id"] = parent_dataset_id
+
         metadata = {
             "dataset_id": dataset_id,
             "generator": generator,
             "params": params,
-            "meta": {
-                "n_train": n_train,
-                "n_test": n_test,
-                "n_full": n_full,
-                "n_features": n_features,
-                "n_classes": n_classes,
-                "dtype": "float32",
-                "created_at": now,
-            },
+            "meta": meta,
             "artifact_url": f"/v1/datasets/{dataset_id}/artifact",
             "created_at": now,
         }
@@ -365,6 +395,54 @@ class FakeDataClient:
         params.update(kwargs)
 
         return self.create_dataset("spiral", params)
+
+    # ------------------------------------------------------------------
+    # Dataset versioning
+    # ------------------------------------------------------------------
+
+    def list_versions(self, name: str) -> Dict[str, Any]:
+        """List all versions of a named dataset.
+
+        Args:
+            name: Dataset name to list versions for.
+
+        Returns:
+            Dict with ``dataset_name``, ``versions`` list, ``total`` count,
+            and ``latest_version``.
+        """
+        versions = []
+        for entry in self._datasets.values():
+            meta = entry["metadata"].get("meta", {})
+            if meta.get("dataset_name") == name:
+                versions.append(entry["metadata"])
+
+        # Sort by dataset_version ascending
+        versions.sort(key=lambda m: m.get("meta", {}).get("dataset_version", 0))
+
+        latest_version = versions[-1]["meta"]["dataset_version"] if versions else None
+        return {
+            "dataset_name": name,
+            "versions": versions,
+            "total": len(versions),
+            "latest_version": latest_version,
+        }
+
+    def get_latest(self, name: str) -> Dict[str, Any]:
+        """Get the latest version of a named dataset.
+
+        Args:
+            name: Dataset name to get latest version of.
+
+        Returns:
+            Dataset metadata for the latest version.
+
+        Raises:
+            JuniperDataNotFoundError: If no versions exist for the given name.
+        """
+        result = self.list_versions(name)
+        if result["total"] == 0:
+            raise JuniperDataNotFoundError(f"No versions found for dataset name: {name}")
+        return result["versions"][-1]
 
     # ------------------------------------------------------------------
     # Dataset listing / metadata / deletion
@@ -621,6 +699,7 @@ class FakeDataClient:
     def close(self) -> None:
         """Close the fake client (clears internal state)."""
         self._datasets.clear()
+        self._version_counters.clear()
         self._closed = True
 
     def __enter__(self) -> "FakeDataClient":
