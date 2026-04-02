@@ -30,7 +30,6 @@ import pytest
 from juniper_data_client.exceptions import JuniperDataNotFoundError
 from juniper_data_client.testing import FakeDataClient
 
-
 # ======================================================================
 # create_dataset versioning fields
 # ======================================================================

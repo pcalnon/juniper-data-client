@@ -613,21 +613,25 @@ class FakeDataClient:
                     params=item.get("params", {}),
                     persist=item.get("persist", True),
                 )
-                results.append({
-                    "index": idx,
-                    "dataset_id": resp["dataset_id"],
-                    "generator": item["generator"],
-                    "success": True,
-                    "artifact_url": f"/v1/datasets/{resp['dataset_id']}/artifact",
-                })
+                results.append(
+                    {
+                        "index": idx,
+                        "dataset_id": resp["dataset_id"],
+                        "generator": item["generator"],
+                        "success": True,
+                        "artifact_url": f"/v1/datasets/{resp['dataset_id']}/artifact",
+                    }
+                )
                 total_created += 1
             except Exception as e:
-                results.append({
-                    "index": idx,
-                    "generator": item.get("generator", "unknown"),
-                    "success": False,
-                    "error": str(e),
-                })
+                results.append(
+                    {
+                        "index": idx,
+                        "generator": item.get("generator", "unknown"),
+                        "success": False,
+                        "error": str(e),
+                    }
+                )
                 total_failed += 1
 
         return {"results": results, "total_created": total_created, "total_failed": total_failed}
