@@ -195,7 +195,7 @@ class TestFakeClientPerformance:
         """Health check completes in < 100 ms."""
         elapsed, result = _measure(fake_client.health_check)
 
-        assert result["status"] == "healthy"
+        assert result["status"] == "ok"
         assert elapsed < 0.1, f"Health check took {elapsed:.4f}s (limit 0.1s)"
         print(f"  fake health check: {elapsed * 1000:.2f} ms")
 
@@ -288,7 +288,7 @@ class TestLiveClientPerformance:
         """Measure health check round-trip time against the live service."""
         elapsed, result = _measure(self.client.health_check)
 
-        assert result["status"] == "healthy"
+        assert result["status"] == "ok"
         print(f"  live health check: {elapsed * 1000:.2f} ms")
 
     # ------------------------------------------------------------------
@@ -329,7 +329,7 @@ class TestLiveClientPerformance:
 
     def test_batch_create_30_datasets(self) -> None:
         """Measure batch creation of 30 datasets against the live service."""
-        generators = ["spiral", "xor", "circle", "moon"]
+        generators = ["spiral", "xor", "circles", "gaussian"]
         specs: List[Dict[str, Any]] = [{"generator": generators[i % len(generators)], "params": {"seed": i}} for i in range(30)]
 
         elapsed, result = _measure(self.client.batch_create, specs)

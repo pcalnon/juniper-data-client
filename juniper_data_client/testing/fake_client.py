@@ -210,7 +210,7 @@ class FakeDataClient:
             Health status dictionary matching the real service format.
         """
         return {
-            "status": "healthy",
+            "status": "ok",
             "service": "juniper-data",
             "version": "fake",
             "uptime_seconds": 0.0,

@@ -56,7 +56,7 @@ class TestHealthAndReadiness:
         """health_check() returns a dict with expected status fields."""
         result = fake_client.health_check()
         assert isinstance(result, dict), "health_check should return a dict"
-        assert result["status"] == "healthy"
+        assert result["status"] == "ok"
         assert result["service"] == "juniper-data"
         assert "version" in result
         assert "uptime_seconds" in result
