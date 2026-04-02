@@ -4,7 +4,7 @@
 **Version**: 0.3.2
 **License**: MIT License
 **Author**: Paul Calnon
-**Last Updated**: 2026-02-20
+**Last Updated**: 2026-04-02
 
 ---
 
@@ -19,6 +19,9 @@ pip install -e ".[dev]"
 # Run all tests
 pytest tests/ -v
 
+# Run all tests via script
+bash util/run_all_tests.bash
+
 # Run unit tests only
 pytest tests/ -m unit -v
 
@@ -29,9 +32,15 @@ pytest tests/ --cov=juniper_data_client --cov-report=term-missing --cov-fail-und
 mypy juniper_data_client --strict
 
 # Linting
-flake8 juniper_data_client --max-line-length=120
+flake8 juniper_data_client --max-line-length=512
 black --check --diff juniper_data_client
 isort --check-only --diff juniper_data_client
+
+# Validate documentation links
+python scripts/check_doc_links.py
+
+# Generate dependency docs
+bash scripts/generate_dep_docs.sh
 ```
 
 ---
@@ -40,17 +49,102 @@ isort --check-only --diff juniper_data_client
 
 `juniper-data-client` is the official Python client library for the JuniperData dataset generation service. It is a shared dependency used by both **JuniperCascor** (neural network backend) and **JuniperCanopy** (web dashboard).
 
-### Key Files
+### Consumers
+
+- **JuniperCascor**: `SpiralDataProvider` uses this client for dataset retrieval
+- **JuniperCanopy**: `DemoMode` and `CascorIntegration` use this client
+
+### Data Contract
+
+NPZ artifacts with keys: `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`)
+
+### Environment Variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `JUNIPER_DATA_API_KEY` | API key for authentication (sent as `X-API-Key` header) | None (optional) |
+| `JUNIPER_DATA_URL` | Service URL (used by consuming applications) | `http://localhost:8100` |
+
+---
+
+## Directory Structure
+
+```
+juniper-data-client/
+├── juniper_data_client/           # Main Python package
+│   ├── __init__.py                # Public API exports, __version__
+│   ├── client.py                  # JuniperDataClient class (all API methods)
+│   ├── exceptions.py              # Exception hierarchy
+│   ├── py.typed                   # PEP 561 type hint marker
+│   └── testing/                   # Testing utilities submodule (ships with package)
+│       ├── __init__.py            # Exports FakeDataClient + generators
+│       ├── fake_client.py         # Drop-in mock client for consumer testing
+│       └── generators.py          # Synthetic dataset generators (spiral, xor, circle, moon)
+├── tests/                         # Test suite (pytest)
+│   ├── conftest.py                # Shared fixtures (FakeDataClient)
+│   ├── test_client.py             # JuniperDataClient unit tests (HTTP mocking)
+│   ├── test_fake_client.py        # FakeDataClient tests
+│   ├── test_fake_client_batch.py  # Batch operation tests
+│   ├── test_performance.py        # Performance benchmarks
+│   └── test_versioning.py         # Dataset versioning tests
+├── docs/                          # User documentation
+│   ├── DOCUMENTATION_OVERVIEW.md  # Navigation index
+│   ├── QUICK_START.md             # 5-minute getting started guide
+│   ├── REFERENCE.md               # Complete API reference
+│   └── DEVELOPER_CHEATSHEET.md    # Developer quick-reference card
+├── notes/                         # Developer notes and procedures
+│   ├── history/                   # Archived procedures
+│   └── pull_requests/             # PR tracking notes
+├── scripts/                       # Utility scripts
+│   ├── check_doc_links.py         # Documentation link validator
+│   └── generate_dep_docs.sh       # Dependency docs generator
+├── util/                          # Shell utilities
+│   └── run_all_tests.bash         # Full test runner script
+├── .github/                       # GitHub configuration
+│   ├── workflows/ci.yml           # CI pipeline (multi-version tests, security, quality gate)
+│   ├── workflows/publish.yml      # PyPI publishing (trusted publishing + attestations)
+│   ├── workflows/security-scan.yml# Weekly security scanning (Bandit + pip-audit)
+│   ├── CODEOWNERS                 # Code ownership routing
+│   └── dependabot.yml             # Automated dependency updates
+├── AGENTS.md                      # This file
+├── CLAUDE.md -> AGENTS.md         # Symlink for Claude Code
+├── CHANGELOG.md                   # Version history
+├── README.md                      # PyPI landing page / project overview
+├── pyproject.toml                 # Package metadata, dependencies, tool config
+├── .pre-commit-config.yaml        # Pre-commit hooks (20+ hooks)
+├── .sops.yaml                     # SOPS encryption config for secrets
+├── .env.example                   # Environment variables template
+└── LICENSE                        # MIT License
+```
+
+---
+
+## Key Files
 
 | File | Purpose |
 |------|---------|
-| `juniper_data_client/client.py` | `JuniperDataClient` class — all API methods |
-| `juniper_data_client/exceptions.py` | `JuniperDataError` exception hierarchy |
-| `juniper_data_client/__init__.py` | Public API exports |
-| `tests/` | Test suite (pytest) |
+| `juniper_data_client/client.py` | `JuniperDataClient` class — all HTTP API methods |
+| `juniper_data_client/exceptions.py` | Exception hierarchy (5 specific exception types) |
+| `juniper_data_client/__init__.py` | Public API exports and `__version__` |
+| `juniper_data_client/py.typed` | PEP 561 marker enabling type checking for consumers |
+| `juniper_data_client/testing/fake_client.py` | `FakeDataClient` — drop-in mock for consumer tests |
+| `juniper_data_client/testing/generators.py` | Synthetic dataset generators (spiral, xor, circle, moon) |
+| `tests/` | Test suite — unit, integration, performance, versioning |
+| `docs/REFERENCE.md` | Complete API reference documentation |
+| `docs/QUICK_START.md` | Getting started guide |
 | `pyproject.toml` | Package config, dependencies, tool settings |
+| `.pre-commit-config.yaml` | Pre-commit hooks configuration |
+| `.github/workflows/ci.yml` | CI pipeline (Python 3.12/3.13/3.14, coverage, security) |
+| `.github/workflows/publish.yml` | PyPI publishing with trusted publishing (OIDC) |
+| `CHANGELOG.md` | Version history and release notes |
+| `scripts/check_doc_links.py` | Documentation link validator |
+| `util/run_all_tests.bash` | Full test runner script |
 
-### Public API
+---
+
+## Public API
+
+### Quick Start
 
 ```python
 from juniper_data_client import JuniperDataClient
@@ -61,14 +155,184 @@ client.create_spiral_dataset(n_spirals=2, n_points_per_spiral=100, noise=0.1, se
 client.download_artifact_npz(dataset_id)
 ```
 
-### Consumers
+### Method Reference
 
-- **JuniperCascor**: `SpiralDataProvider` uses this client for dataset retrieval
-- **JuniperCanopy**: `DemoMode` and `CascorIntegration` use this client
+#### Health & Readiness
 
-### Data Contract
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `health_check()` | GET /v1/health | Returns service health status |
+| `is_ready()` | GET /v1/health/ready | Returns boolean readiness |
+| `wait_for_ready(timeout, poll_interval)` | GET /v1/health/ready | Polls until service is ready |
 
-NPZ artifacts with keys: `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`)
+#### Generator Discovery
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `list_generators()` | GET /v1/generators | Lists available dataset generators |
+| `get_generator_schema(name)` | GET /v1/generators/{name}/schema | Returns parameter schema for a generator |
+
+#### Dataset Creation
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `create_dataset(generator, params, ...)` | POST /v1/datasets | Creates a dataset with any generator |
+| `create_spiral_dataset(**kwargs)` | POST /v1/datasets | Convenience method for spiral datasets |
+
+#### Dataset Versioning
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `list_versions(name)` | GET /v1/datasets/versions | Lists all versions of a named dataset |
+| `get_latest(name)` | GET /v1/datasets/latest | Gets the latest version metadata |
+
+#### Dataset Operations
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `list_datasets(limit, offset)` | GET /v1/datasets | Lists dataset IDs with pagination |
+| `get_dataset_metadata(dataset_id)` | GET /v1/datasets/{id} | Returns dataset metadata |
+| `delete_dataset(dataset_id)` | DELETE /v1/datasets/{id} | Deletes a dataset |
+
+#### Artifact Download
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `download_artifact_bytes(dataset_id)` | GET /v1/datasets/{id}/artifact | Returns raw NPZ bytes |
+| `download_artifact_npz(dataset_id)` | GET /v1/datasets/{id}/artifact | Returns numpy dict with array keys |
+
+#### Previews
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `get_preview(dataset_id, n)` | GET /v1/datasets/{id}/preview | Returns JSON preview of first n rows |
+
+#### Batch Operations
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `batch_delete(dataset_ids)` | POST /v1/datasets/batch-delete | Deletes multiple datasets |
+| `batch_create(datasets)` | POST /v1/datasets/batch-create | Creates multiple datasets |
+| `batch_update_tags(dataset_ids, add_tags, remove_tags)` | PATCH /v1/datasets/batch-tags | Updates tags on multiple datasets |
+| `batch_export(dataset_ids)` | POST /v1/datasets/batch-export | Exports multiple datasets as ZIP |
+
+#### Resource Management
+
+| Pattern | Description |
+|---------|-------------|
+| `client.close()` | Closes the HTTP session |
+| `with JuniperDataClient(...) as client:` | Context manager (auto-closes) |
+
+---
+
+## Exception Hierarchy
+
+```
+JuniperDataClientError (base)
+├── JuniperDataConnectionError   — Connection failures
+├── JuniperDataTimeoutError      — Request timeouts
+├── JuniperDataNotFoundError     — HTTP 404
+├── JuniperDataValidationError   — HTTP 400/422
+└── JuniperDataConfigurationError — Invalid client configuration
+```
+
+| HTTP Status | Exception |
+|-------------|-----------|
+| 400, 422 | `JuniperDataValidationError` |
+| 404 | `JuniperDataNotFoundError` |
+| Connection failure | `JuniperDataConnectionError` |
+| Timeout | `JuniperDataTimeoutError` |
+
+---
+
+## Testing Utilities
+
+The `juniper_data_client.testing` submodule ships with the package and provides tools for consumer projects to test without a live juniper-data service.
+
+### FakeDataClient
+
+Drop-in replacement for `JuniperDataClient` that stores datasets in memory using synthetic generators. Implements the same public API — no network calls required.
+
+```python
+from juniper_data_client.testing import FakeDataClient
+
+client = FakeDataClient()
+result = client.create_spiral_dataset(n_spirals=2, n_points_per_spiral=100)
+data = client.download_artifact_npz(result["dataset_id"])
+```
+
+### Synthetic Generators
+
+```python
+from juniper_data_client.testing import generate_spiral, generate_xor, generate_circle, generate_moon
+```
+
+| Generator | Description | Output |
+|-----------|-------------|--------|
+| `generate_spiral(n_spirals, n_points_per_spiral, noise, seed)` | Archimedean spiral classification | Dict with X_train, y_train, etc. |
+| `generate_xor(n_points, noise, seed)` | XOR classification | Dict with X_train, y_train, etc. |
+| `generate_circle(n_points, noise, factor, seed)` | Concentric circles | Dict with X_train, y_train, etc. |
+| `generate_moon(n_points, noise, seed)` | Two half-moons | Dict with X_train, y_train, etc. |
+
+All generators return `Dict[str, np.ndarray]` with keys `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`).
+
+---
+
+## Architecture & Design Patterns
+
+### Connection Management
+
+- Uses `requests.Session` with `HTTPAdapter` for connection pooling
+- Max connections: 10, max pool size: 10
+- Automatic retry via `urllib3.util.Retry` on status codes 429, 500, 502, 503, 504
+- Configurable retry count (default: 3) and exponential backoff factor (default: 0.5)
+
+### URL Normalization
+
+- Auto-adds `http://` scheme if missing
+- Strips trailing slashes
+- Removes `/v1` suffix from base URL (client adds `/v1/` to all endpoint paths)
+
+### API Key Handling
+
+- Accepts `api_key` constructor parameter or reads `JUNIPER_DATA_API_KEY` environment variable
+- Sent as `X-API-Key` header on all requests when configured
+
+### Constructor Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `base_url` | str | required | JuniperData service URL |
+| `timeout` | int | 30 | Request timeout in seconds |
+| `retries` | int | 3 | Max retry attempts |
+| `backoff_factor` | float | 0.5 | Exponential backoff multiplier |
+| `api_key` | str | None | API key (or use env var) |
+
+---
+
+## CI/CD
+
+### GitHub Actions Workflows
+
+| Workflow | Trigger | Description |
+|----------|---------|-------------|
+| `ci.yml` | Push/PR to main | Pre-commit, tests (Python 3.12/3.13/3.14 matrix), coverage (80% min), doc link validation, security scanning (Gitleaks, Bandit, pip-audit), build verification, quality gate |
+| `publish.yml` | GitHub Release | Publishes to TestPyPI (with install verification) then PyPI; trusted publishing (OIDC); build attestations |
+| `security-scan.yml` | Weekly schedule | Bandit code scanning + pip-audit dependency vulnerability check |
+
+### Pre-Commit Hooks
+
+20+ hooks enforcing: Black formatting (line-length=512), isort import sorting, Flake8 linting (strict for source, relaxed for tests), MyPy type checking, Bandit security scanning, markdownlint, shellcheck, yamllint, SOPS `.env` file blocking.
+
+### Tool Configuration (pyproject.toml)
+
+| Tool | Key Setting |
+|------|-------------|
+| Black | line-length=512, target py312/py313 |
+| isort | profile=black, line-length=512 |
+| MyPy | strict=true, python_version=3.12 |
+| Coverage | fail_under=80, branch=true |
+| Pytest | timeout=30s, markers: unit, integration, performance |
 
 ---
 
