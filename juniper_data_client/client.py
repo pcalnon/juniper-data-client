@@ -98,7 +98,7 @@ class JuniperDataClient:
             total=self.retries,
             backoff_factor=self.backoff_factor,
             status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["HEAD", "GET", "POST", "DELETE"],
+            allowed_methods=["HEAD", "GET", "POST", "PATCH", "DELETE"],
         )
 
         adapter = HTTPAdapter(
