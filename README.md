@@ -164,6 +164,12 @@ y_train = torch.from_numpy(arrays["y_train"])  # torch.float32
 | `download_artifact_bytes(id)`       | Download raw NPZ bytes                 |
 | `get_preview(id, n)`                | Get JSON preview of samples            |
 | `delete_dataset(id)`                | Delete a dataset                       |
+| `list_versions(name)`              | List version history for a dataset     |
+| `get_latest(name)`                 | Get latest version by name             |
+| `batch_delete(dataset_ids)`        | Delete multiple datasets               |
+| `batch_create(datasets)`           | Create multiple datasets               |
+| `batch_update_tags(dataset_ids, add_tags, remove_tags)` | Update tags on multiple datasets |
+| `batch_export(dataset_ids)`        | Export multiple datasets as ZIP        |
 | `close()`                           | Close the client session               |
 
 ### Exceptions

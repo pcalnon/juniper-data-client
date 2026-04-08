@@ -2,9 +2,9 @@
 
 ## juniper-data-client Technical Reference
 
-**Version:** 0.3.1
+**Version:** 0.4.0
 **Status:** Active
-**Last Updated:** March 3, 2026
+**Last Updated:** April 8, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -15,6 +15,8 @@
 - [Constructor Parameters](#constructor-parameters)
 - [Methods Reference](#methods-reference)
 - [Convenience Methods](#convenience-methods)
+- [Batch Operations](#batch-operations)
+- [Versioning Methods](#versioning-methods)
 - [Exception Hierarchy](#exception-hierarchy)
 - [Testing Utilities](#testing-utilities)
 - [Configuration Reference](#configuration-reference)
@@ -75,10 +77,19 @@ with JuniperDataClient("http://localhost:8100") as client:
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `create_dataset(generator, params, persist=True)` | `Dict` | Create dataset; returns `dataset_id`, `generator`, `meta`, `artifact_url` |
+| `create_dataset(generator, params, persist=True, name=None, description=None, created_by=None, parent_dataset_id=None)` | `Dict` | Create dataset; returns `dataset_id`, `generator`, `meta`, `artifact_url` |
 | `list_datasets(limit=100, offset=0)` | `List[str]` | List dataset ID strings with pagination |
 | `get_dataset_metadata(dataset_id)` | `Dict` | Metadata for a specific dataset |
 | `delete_dataset(dataset_id)` | `bool` | Delete a dataset; returns `True` on success |
+
+#### `create_dataset` Optional Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `name` | `Optional[str]` | `None` | Dataset name for versioning. When provided, the service automatically assigns an incrementing version number. |
+| `description` | `Optional[str]` | `None` | Human-readable description of the dataset. |
+| `created_by` | `Optional[str]` | `None` | Identifier for the creator (user or system). |
+| `parent_dataset_id` | `Optional[str]` | `None` | ID of the parent dataset this was derived from. |
 
 ### Artifact Download
 
@@ -113,6 +124,84 @@ Convenience wrapper for creating spiral datasets without building the params dic
 | `**kwargs` | `Any` | -- | Additional parameters passed to generator |
 
 **Returns:** `Dict[str, Any]` -- Dataset creation response with `dataset_id` and metadata.
+
+---
+
+## Batch Operations
+
+Methods for operating on multiple datasets in a single request.
+
+### `batch_delete(dataset_ids: List[str])`
+
+Delete multiple datasets in a single request.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `dataset_ids` | `List[str]` | List of dataset IDs to delete (1-100) |
+
+**Returns:** `Dict[str, Any]` -- Dictionary with `deleted`, `not_found`, and `total_deleted`.
+
+### `batch_create(datasets: List[Dict[str, Any]])`
+
+Create multiple datasets in a single request. Each item should have `generator` and `params` keys, and optionally `persist`, `tags`, and `ttl_seconds`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `datasets` | `List[Dict[str, Any]]` | List of dataset specifications (1-50) |
+
+**Returns:** `Dict[str, Any]` -- Dictionary with `results`, `total_created`, and `total_failed`.
+
+### `batch_update_tags(dataset_ids: List[str], add_tags: Optional[List[str]] = None, remove_tags: Optional[List[str]] = None)`
+
+Add or remove tags from multiple datasets. Uses PATCH method.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `dataset_ids` | `List[str]` | -- | List of dataset IDs to update (1-100) |
+| `add_tags` | `Optional[List[str]]` | `None` | Tags to add to all specified datasets |
+| `remove_tags` | `Optional[List[str]]` | `None` | Tags to remove from all specified datasets |
+
+**Returns:** `Dict[str, Any]` -- Dictionary with `updated`, `not_found`, and `total_updated`.
+
+### `batch_export(dataset_ids: List[str])`
+
+Export multiple datasets as a ZIP archive of NPZ files.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `dataset_ids` | `List[str]` | List of dataset IDs to export (1-50) |
+
+**Returns:** `bytes` -- Raw bytes of the ZIP archive.
+
+**Raises:** `JuniperDataNotFoundError` if none of the datasets exist.
+
+---
+
+## Versioning Methods
+
+Methods for working with named dataset versions. When a dataset is created with a `name` parameter, the service automatically assigns an incrementing version number.
+
+### `list_versions(name: str)`
+
+List all versions of a named dataset.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `name` | `str` | Dataset name to list versions for |
+
+**Returns:** `Dict[str, Any]` -- Dictionary with `dataset_name`, `versions` list, `total` count, and `latest_version`.
+
+### `get_latest(name: str)`
+
+Get the latest version of a named dataset.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `name` | `str` | Dataset name to get latest version of |
+
+**Returns:** `Dict[str, Any]` -- Dataset metadata for the latest version.
+
+**Raises:** `JuniperDataNotFoundError` if no versions exist for the given name.
 
 ---
 
@@ -274,6 +363,6 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** March 3, 2026
-**Version:** 0.3.1
+**Last Updated:** April 8, 2026
+**Version:** 0.4.0
 **Maintainer:** Paul Calnon
