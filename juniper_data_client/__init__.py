@@ -7,7 +7,7 @@ dataset generation service, used by both JuniperCascor and juniper-canopy.
 from juniper_data_client.client import JuniperDataClient
 from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConfigurationError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
-__version__ = "0.3.2"
+__version__ = "0.4.0"
 
 __all__ = [
     "JuniperDataClient",
