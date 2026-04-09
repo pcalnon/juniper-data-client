@@ -2,9 +2,9 @@
 
 ## Get juniper-data-client Working in 5 Minutes
 
-**Version:** 0.3.1
+**Version:** 0.4.0
 **Status:** Active
-**Last Updated:** March 3, 2026
+**Last Updated:** April 8, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -135,7 +135,7 @@ pytest tests/ -m unit -v
 pytest tests/ --cov=juniper_data_client --cov-report=term-missing --cov-fail-under=80
 ```
 
-The test suite includes a `FakeJuniperDataClient` for testing consumers without a running service. See [REFERENCE.md](REFERENCE.md) for details.
+The test suite includes a `FakeDataClient` for testing consumers without a running service. See [REFERENCE.md](REFERENCE.md) for details.
 
 ---
 
@@ -148,6 +148,6 @@ The test suite includes a `FakeJuniperDataClient` for testing consumers without 
 
 ---
 
-**Last Updated:** March 3, 2026
-**Version:** 0.3.1
+**Last Updated:** April 8, 2026
+**Version:** 0.4.0
 **Status:** Active

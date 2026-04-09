@@ -4,7 +4,7 @@
 # Application:   juniper_data_client
 # File Name:     generators.py
 # Author:        Paul Calnon
-# Version:       0.3.1
+# Version:       0.4.0
 #
 # Date Created:  2026-02-27
 # Last Modified: 2026-02-27

@@ -4,6 +4,7 @@ Uses the `responses` library to mock HTTP requests without requiring a live serv
 """
 
 import io
+import json
 from typing import Any, Dict
 
 import numpy as np
@@ -595,3 +596,201 @@ class TestErrorHandling:
         client = JuniperDataClient()
         with pytest.raises(JuniperDataValidationError, match="Custom error message"):
             client.create_dataset("spiral", {})
+
+
+@pytest.mark.unit
+class TestBatchOperations:
+    """Tests for batch operation endpoints."""
+
+    @responses.activate
+    def test_batch_delete_success(self) -> None:
+        """Batch delete multiple datasets."""
+        response_data = {
+            "deleted": ["ds-1", "ds-2"],
+            "not_found": ["ds-3"],
+            "total_deleted": 2,
+        }
+        responses.add(
+            responses.POST,
+            "http://localhost:8100/v1/datasets/batch-delete",
+            json=response_data,
+            status=200,
+        )
+
+        client = JuniperDataClient()
+        result = client.batch_delete(["ds-1", "ds-2", "ds-3"])
+
+        assert result["total_deleted"] == 2
+        assert result["deleted"] == ["ds-1", "ds-2"]
+        assert result["not_found"] == ["ds-3"]
+
+        request_body = json.loads(responses.calls[0].request.body)
+        assert request_body["dataset_ids"] == ["ds-1", "ds-2", "ds-3"]
+
+    @responses.activate
+    def test_batch_create_success(self) -> None:
+        """Batch create multiple datasets."""
+        datasets_input = [
+            {"generator": "spiral", "params": {"n_spirals": 2, "seed": 42}},
+            {"generator": "spiral", "params": {"n_spirals": 3, "seed": 99}},
+        ]
+        response_data = {
+            "results": [
+                {"dataset_id": "new-1", "status": "created"},
+                {"dataset_id": "new-2", "status": "created"},
+            ],
+            "total_created": 2,
+            "total_failed": 0,
+        }
+        responses.add(
+            responses.POST,
+            "http://localhost:8100/v1/datasets/batch-create",
+            json=response_data,
+            status=200,
+        )
+
+        client = JuniperDataClient()
+        result = client.batch_create(datasets_input)
+
+        assert result["total_created"] == 2
+        assert result["total_failed"] == 0
+        assert len(result["results"]) == 2
+
+        request_body = json.loads(responses.calls[0].request.body)
+        assert request_body["datasets"] == datasets_input
+
+    @responses.activate
+    def test_batch_update_tags_success(self) -> None:
+        """Batch update tags uses PATCH method."""
+        response_data = {
+            "updated": ["ds-1", "ds-2"],
+            "not_found": [],
+            "total_updated": 2,
+        }
+        responses.add(
+            responses.PATCH,
+            "http://localhost:8100/v1/datasets/batch-tags",
+            json=response_data,
+            status=200,
+        )
+
+        client = JuniperDataClient()
+        result = client.batch_update_tags(
+            dataset_ids=["ds-1", "ds-2"],
+            add_tags=["experiment-1"],
+            remove_tags=["draft"],
+        )
+
+        assert result["total_updated"] == 2
+        assert result["updated"] == ["ds-1", "ds-2"]
+
+        request_body = json.loads(responses.calls[0].request.body)
+        assert request_body["dataset_ids"] == ["ds-1", "ds-2"]
+        assert request_body["add_tags"] == ["experiment-1"]
+        assert request_body["remove_tags"] == ["draft"]
+        assert responses.calls[0].request.method == "PATCH"
+
+    @responses.activate
+    def test_batch_export_success(self) -> None:
+        """Batch export returns raw ZIP bytes."""
+        fake_zip_content = b"PK\x03\x04fake-zip-archive-content"
+        responses.add(
+            responses.POST,
+            "http://localhost:8100/v1/datasets/batch-export",
+            body=fake_zip_content,
+            status=200,
+            content_type="application/zip",
+        )
+
+        client = JuniperDataClient()
+        result = client.batch_export(["ds-1", "ds-2"])
+
+        assert isinstance(result, bytes)
+        assert result == fake_zip_content
+
+        request_body = json.loads(responses.calls[0].request.body)
+        assert request_body["dataset_ids"] == ["ds-1", "ds-2"]
+
+
+@pytest.mark.unit
+class TestVersioning:
+    """Tests for dataset versioning endpoints."""
+
+    @responses.activate
+    def test_list_versions_success(self) -> None:
+        """List all versions of a named dataset."""
+        response_data = {
+            "dataset_name": "my-spiral",
+            "versions": [
+                {"version": 1, "dataset_id": "ds-v1", "created_at": "2026-01-01T00:00:00Z"},
+                {"version": 2, "dataset_id": "ds-v2", "created_at": "2026-02-01T00:00:00Z"},
+            ],
+            "total": 2,
+            "latest_version": 2,
+        }
+        responses.add(
+            responses.GET,
+            "http://localhost:8100/v1/datasets/versions",
+            json=response_data,
+            status=200,
+        )
+
+        client = JuniperDataClient()
+        result = client.list_versions("my-spiral")
+
+        assert result["dataset_name"] == "my-spiral"
+        assert result["total"] == 2
+        assert result["latest_version"] == 2
+        assert len(result["versions"]) == 2
+
+    @responses.activate
+    def test_get_latest_success(self) -> None:
+        """Get the latest version of a named dataset."""
+        response_data = {
+            "dataset_id": "ds-v2",
+            "name": "my-spiral",
+            "version": 2,
+            "generator": "spiral",
+            "created_at": "2026-02-01T00:00:00Z",
+        }
+        responses.add(
+            responses.GET,
+            "http://localhost:8100/v1/datasets/latest",
+            json=response_data,
+            status=200,
+        )
+
+        client = JuniperDataClient()
+        result = client.get_latest("my-spiral")
+
+        assert result["dataset_id"] == "ds-v2"
+        assert result["name"] == "my-spiral"
+        assert result["version"] == 2
+
+    @responses.activate
+    def test_list_versions_not_found(self) -> None:
+        """List versions for nonexistent name raises not found."""
+        responses.add(
+            responses.GET,
+            "http://localhost:8100/v1/datasets/versions",
+            json={"detail": "No datasets found with name: nonexistent"},
+            status=404,
+        )
+
+        client = JuniperDataClient()
+        with pytest.raises(JuniperDataNotFoundError):
+            client.list_versions("nonexistent")
+
+    @responses.activate
+    def test_get_latest_not_found(self) -> None:
+        """Get latest for nonexistent name raises not found."""
+        responses.add(
+            responses.GET,
+            "http://localhost:8100/v1/datasets/latest",
+            json={"detail": "No datasets found with name: nonexistent"},
+            status=404,
+        )
+
+        client = JuniperDataClient()
+        with pytest.raises(JuniperDataNotFoundError):
+            client.get_latest("nonexistent")

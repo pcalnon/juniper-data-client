@@ -69,7 +69,7 @@ NPZ artifacts with keys: `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_
 
 ## Directory Structure
 
-```
+```bash
 juniper-data-client/
 ├── juniper_data_client/           # Main Python package
 │   ├── __init__.py                # Public API exports, __version__
@@ -227,7 +227,7 @@ client.download_artifact_npz(dataset_id)
 
 ## Exception Hierarchy
 
-```
+```bash
 JuniperDataClientError (base)
 ├── JuniperDataConnectionError   — Connection failures
 ├── JuniperDataTimeoutError      — Request timeouts
