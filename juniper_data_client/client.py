@@ -15,6 +15,50 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from juniper_data_client.constants import (
+    API_KEY_ENV_VAR,
+    API_KEY_HEADER_NAME,
+    API_VERSION_PATH_SUFFIX,
+    DEFAULT_BACKOFF_FACTOR,
+    DEFAULT_BASE_URL,
+    DEFAULT_LIST_LIMIT,
+    DEFAULT_LIST_OFFSET,
+    DEFAULT_PREVIEW_N,
+    DEFAULT_READY_POLL_INTERVAL,
+    DEFAULT_READY_TIMEOUT,
+    DEFAULT_RETRIES,
+    DEFAULT_TIMEOUT,
+    DEFAULT_URL_SCHEME_PREFIX,
+    ENDPOINT_BATCH_CREATE,
+    ENDPOINT_BATCH_DELETE,
+    ENDPOINT_BATCH_EXPORT,
+    ENDPOINT_BATCH_TAGS,
+    ENDPOINT_DATASET_ARTIFACT_TEMPLATE,
+    ENDPOINT_DATASET_BY_ID_TEMPLATE,
+    ENDPOINT_DATASET_PREVIEW_TEMPLATE,
+    ENDPOINT_DATASETS,
+    ENDPOINT_DATASETS_LATEST,
+    ENDPOINT_DATASETS_VERSIONS,
+    ENDPOINT_GENERATOR_SCHEMA_TEMPLATE,
+    ENDPOINT_GENERATORS,
+    ENDPOINT_HEALTH,
+    ENDPOINT_HEALTH_READY,
+    GENERATOR_SPIRAL,
+    HEALTH_READY_STATUS,
+    HTTP_400_BAD_REQUEST,
+    HTTP_404_NOT_FOUND,
+    HTTP_422_UNPROCESSABLE_ENTITY,
+    HTTP_POOL_CONNECTIONS,
+    HTTP_POOL_MAXSIZE,
+    RETRY_ALLOWED_METHODS,
+    RETRYABLE_STATUS_CODES,
+    SPIRAL_ALGORITHM_DEFAULT,
+    SPIRAL_N_POINTS_PER_SPIRAL_DEFAULT,
+    SPIRAL_N_SPIRALS_DEFAULT,
+    SPIRAL_NOISE_DEFAULT,
+    SPIRAL_TRAIN_RATIO_DEFAULT,
+    URL_SCHEME_PREFIXES,
+)
 from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
 
@@ -31,13 +75,9 @@ class JuniperDataClient:
         >>> X_train, y_train = arrays["X_train"], arrays["y_train"]
     """
 
-    DEFAULT_TIMEOUT = 30
-    DEFAULT_RETRIES = 3
-    DEFAULT_BACKOFF_FACTOR = 0.5
-
     def __init__(
         self,
-        base_url: str = "http://localhost:8100",
+        base_url: str = DEFAULT_BASE_URL,
         timeout: int = DEFAULT_TIMEOUT,
         retries: int = DEFAULT_RETRIES,
         backoff_factor: float = DEFAULT_BACKOFF_FACTOR,
@@ -59,9 +99,9 @@ class JuniperDataClient:
         self.backoff_factor = backoff_factor
         self.session = self._create_session()
 
-        resolved_api_key = api_key or os.environ.get("JUNIPER_DATA_API_KEY")
+        resolved_api_key = api_key or os.environ.get(API_KEY_ENV_VAR)
         if resolved_api_key:
-            self.session.headers["X-API-Key"] = resolved_api_key
+            self.session.headers[API_KEY_HEADER_NAME] = resolved_api_key
 
     def _normalize_url(self, url: str) -> str:
         """Normalize the base URL for consistent API calls.
@@ -74,15 +114,15 @@ class JuniperDataClient:
         """
         url = url.strip()
 
-        if not url.startswith(("http://", "https://")):
-            url = f"http://{url}"
+        if not url.startswith(URL_SCHEME_PREFIXES):
+            url = f"{DEFAULT_URL_SCHEME_PREFIX}{url}"
 
         parsed = urlparse(url)
         normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
         normalized = normalized.rstrip("/")
 
-        if normalized.endswith("/v1"):
-            normalized = normalized[:-3]
+        if normalized.endswith(API_VERSION_PATH_SUFFIX):
+            normalized = normalized[: -len(API_VERSION_PATH_SUFFIX)]
 
         return normalized
 
@@ -97,18 +137,18 @@ class JuniperDataClient:
         retry_strategy = Retry(
             total=self.retries,
             backoff_factor=self.backoff_factor,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["HEAD", "GET", "POST", "PATCH", "DELETE"],
+            status_forcelist=RETRYABLE_STATUS_CODES,
+            allowed_methods=RETRY_ALLOWED_METHODS,
         )
 
         adapter = HTTPAdapter(
             max_retries=retry_strategy,
-            pool_connections=10,
-            pool_maxsize=10,
+            pool_connections=HTTP_POOL_CONNECTIONS,
+            pool_maxsize=HTTP_POOL_MAXSIZE,
         )
 
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
+        for scheme in URL_SCHEME_PREFIXES:
+            session.mount(scheme, adapter)
 
         return session
 
@@ -155,9 +195,9 @@ class JuniperDataClient:
             # fall back to using the raw response text as the error detail.
             error_detail = response.text
 
-        if response.status_code == 404:
+        if response.status_code == HTTP_404_NOT_FOUND:
             raise JuniperDataNotFoundError(f"Resource not found: {error_detail}")
-        elif response.status_code in (400, 422):
+        elif response.status_code in (HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY):
             raise JuniperDataValidationError(f"Validation error: {error_detail}")
         else:
             raise JuniperDataClientError(f"Request failed ({response.status_code}): {error_detail}")
@@ -171,7 +211,7 @@ class JuniperDataClient:
         Raises:
             JuniperDataConnectionError: If service is unreachable
         """
-        response = self._request("GET", "/v1/health")
+        response = self._request("GET", ENDPOINT_HEALTH)
         return response.json()
 
     def is_ready(self) -> bool:
@@ -181,12 +221,12 @@ class JuniperDataClient:
             True if service is ready, False otherwise
         """
         try:
-            response = self._request("GET", "/v1/health/ready")
-            return response.json().get("status") == "ready"
+            response = self._request("GET", ENDPOINT_HEALTH_READY)
+            return response.json().get("status") == HEALTH_READY_STATUS
         except JuniperDataClientError:
             return False
 
-    def wait_for_ready(self, timeout: float = 30.0, poll_interval: float = 0.5) -> bool:
+    def wait_for_ready(self, timeout: float = DEFAULT_READY_TIMEOUT, poll_interval: float = DEFAULT_READY_POLL_INTERVAL) -> bool:
         """Wait for the JuniperData service to become ready.
 
         Args:
@@ -209,7 +249,7 @@ class JuniperDataClient:
         Returns:
             List of generator information dictionaries
         """
-        response = self._request("GET", "/v1/generators")
+        response = self._request("GET", ENDPOINT_GENERATORS)
         return response.json()
 
     def get_generator_schema(self, name: str) -> Dict[str, Any]:
@@ -224,7 +264,7 @@ class JuniperDataClient:
         Raises:
             JuniperDataNotFoundError: If generator not found
         """
-        response = self._request("GET", f"/v1/generators/{name}/schema")
+        response = self._request("GET", ENDPOINT_GENERATOR_SCHEMA_TEMPLATE.format(name=name))
         return response.json()
 
     def create_dataset(
@@ -273,7 +313,7 @@ class JuniperDataClient:
         if parent_dataset_id is not None:
             payload["parent_dataset_id"] = parent_dataset_id
 
-        response = self._request("POST", "/v1/datasets", json=payload)
+        response = self._request("POST", ENDPOINT_DATASETS, json=payload)
         return response.json()
 
     def list_versions(self, name: str) -> Dict[str, Any]:
@@ -285,7 +325,7 @@ class JuniperDataClient:
         Returns:
             Dict with dataset_name, versions list, total count, and latest_version.
         """
-        response = self._request("GET", "/v1/datasets/versions", params={"name": name})
+        response = self._request("GET", ENDPOINT_DATASETS_VERSIONS, params={"name": name})
         return response.json()
 
     def get_latest(self, name: str) -> Dict[str, Any]:
@@ -300,10 +340,10 @@ class JuniperDataClient:
         Raises:
             JuniperDataNotFoundError: If no versions exist for the given name.
         """
-        response = self._request("GET", "/v1/datasets/latest", params={"name": name})
+        response = self._request("GET", ENDPOINT_DATASETS_LATEST, params={"name": name})
         return response.json()
 
-    def list_datasets(self, limit: int = 100, offset: int = 0) -> List[str]:
+    def list_datasets(self, limit: int = DEFAULT_LIST_LIMIT, offset: int = DEFAULT_LIST_OFFSET) -> List[str]:
         """List dataset IDs.
 
         Args:
@@ -313,7 +353,7 @@ class JuniperDataClient:
         Returns:
             List of dataset ID strings
         """
-        response = self._request("GET", "/v1/datasets", params={"limit": limit, "offset": offset})
+        response = self._request("GET", ENDPOINT_DATASETS, params={"limit": limit, "offset": offset})
         return response.json()
 
     def get_dataset_metadata(self, dataset_id: str) -> Dict[str, Any]:
@@ -328,7 +368,7 @@ class JuniperDataClient:
         Raises:
             JuniperDataNotFoundError: If dataset not found
         """
-        response = self._request("GET", f"/v1/datasets/{dataset_id}")
+        response = self._request("GET", ENDPOINT_DATASET_BY_ID_TEMPLATE.format(dataset_id=dataset_id))
         return response.json()
 
     def download_artifact_bytes(self, dataset_id: str) -> bytes:
@@ -343,7 +383,7 @@ class JuniperDataClient:
         Raises:
             JuniperDataNotFoundError: If dataset not found
         """
-        response = self._request("GET", f"/v1/datasets/{dataset_id}/artifact")
+        response = self._request("GET", ENDPOINT_DATASET_ARTIFACT_TEMPLATE.format(dataset_id=dataset_id))
         return response.content
 
     def download_artifact_npz(self, dataset_id: str) -> Dict[str, np.ndarray]:
@@ -369,7 +409,7 @@ class JuniperDataClient:
         npz_file = np.load(io.BytesIO(content))
         return {key: npz_file[key] for key in npz_file.files}
 
-    def get_preview(self, dataset_id: str, n: int = 100) -> Dict[str, Any]:
+    def get_preview(self, dataset_id: str, n: int = DEFAULT_PREVIEW_N) -> Dict[str, Any]:
         """Get a preview of dataset samples as JSON.
 
         Args:
@@ -382,7 +422,7 @@ class JuniperDataClient:
         Raises:
             JuniperDataNotFoundError: If dataset not found
         """
-        response = self._request("GET", f"/v1/datasets/{dataset_id}/preview", params={"n": n})
+        response = self._request("GET", ENDPOINT_DATASET_PREVIEW_TEMPLATE.format(dataset_id=dataset_id), params={"n": n})
         return response.json()
 
     def delete_dataset(self, dataset_id: str) -> bool:
@@ -397,17 +437,17 @@ class JuniperDataClient:
         Raises:
             JuniperDataNotFoundError: If dataset not found
         """
-        self._request("DELETE", f"/v1/datasets/{dataset_id}")
+        self._request("DELETE", ENDPOINT_DATASET_BY_ID_TEMPLATE.format(dataset_id=dataset_id))
         return True
 
     def create_spiral_dataset(
         self,
-        n_spirals: int = 2,
-        n_points_per_spiral: int = 100,
-        noise: float = 0.1,
+        n_spirals: int = SPIRAL_N_SPIRALS_DEFAULT,
+        n_points_per_spiral: int = SPIRAL_N_POINTS_PER_SPIRAL_DEFAULT,
+        noise: float = SPIRAL_NOISE_DEFAULT,
         seed: Optional[int] = None,
-        algorithm: str = "modern",
-        train_ratio: float = 0.8,
+        algorithm: str = SPIRAL_ALGORITHM_DEFAULT,
+        train_ratio: float = SPIRAL_TRAIN_RATIO_DEFAULT,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Convenience method for creating spiral datasets.
@@ -435,7 +475,7 @@ class JuniperDataClient:
             params["seed"] = seed
         params.update(kwargs)
 
-        return self.create_dataset("spiral", params)
+        return self.create_dataset(GENERATOR_SPIRAL, params)
 
     # ─── Batch Operations ────────────────────────────────────────────────
 
@@ -448,7 +488,7 @@ class JuniperDataClient:
         Returns:
             Dictionary with deleted, not_found, and total_deleted.
         """
-        response = self._request("POST", "/v1/datasets/batch-delete", json={"dataset_ids": dataset_ids})
+        response = self._request("POST", ENDPOINT_BATCH_DELETE, json={"dataset_ids": dataset_ids})
         return response.json()
 
     def batch_create(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -463,7 +503,7 @@ class JuniperDataClient:
         Returns:
             Dictionary with results, total_created, and total_failed.
         """
-        response = self._request("POST", "/v1/datasets/batch-create", json={"datasets": datasets})
+        response = self._request("POST", ENDPOINT_BATCH_CREATE, json={"datasets": datasets})
         return response.json()
 
     def batch_update_tags(
@@ -487,7 +527,7 @@ class JuniperDataClient:
             payload["add_tags"] = add_tags
         if remove_tags:
             payload["remove_tags"] = remove_tags
-        response = self._request("PATCH", "/v1/datasets/batch-tags", json=payload)
+        response = self._request("PATCH", ENDPOINT_BATCH_TAGS, json=payload)
         return response.json()
 
     def batch_export(self, dataset_ids: List[str]) -> bytes:
@@ -502,7 +542,7 @@ class JuniperDataClient:
         Raises:
             JuniperDataNotFoundError: If none of the datasets exist.
         """
-        response = self._request("POST", "/v1/datasets/batch-export", json={"dataset_ids": dataset_ids})
+        response = self._request("POST", ENDPOINT_BATCH_EXPORT, json={"dataset_ids": dataset_ids})
         return response.content
 
     def close(self) -> None:
