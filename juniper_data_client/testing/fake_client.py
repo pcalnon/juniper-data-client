@@ -43,6 +43,65 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from juniper_data_client.constants import (
+    CIRCLE_FACTOR_DEFAULT,
+    CIRCLE_FACTOR_MAX,
+    CIRCLE_FACTOR_MIN,
+    CIRCLE_N_POINTS_DEFAULT,
+    CIRCLE_N_POINTS_MIN,
+    CIRCLE_NOISE_DEFAULT,
+    CIRCLE_NOISE_MIN,
+    CIRCLE_TRAIN_RATIO_DEFAULT,
+    CIRCLE_TRAIN_RATIO_MAX,
+    CIRCLE_TRAIN_RATIO_MIN,
+    DEFAULT_ARRAY_DTYPE,
+    DEFAULT_LIST_LIMIT,
+    DEFAULT_LIST_OFFSET,
+    DEFAULT_PREVIEW_N,
+    DEFAULT_READY_POLL_INTERVAL,
+    DEFAULT_READY_TIMEOUT,
+    ENDPOINT_DATASET_ARTIFACT_TEMPLATE,
+    FAKE_BASE_URL,
+    FAKE_SERVICE_NAME,
+    FAKE_SERVICE_STATUS,
+    FAKE_SERVICE_UPTIME_SECONDS,
+    FAKE_SERVICE_VERSION,
+    GENERATOR_CIRCLE,
+    GENERATOR_DESCRIPTION_CIRCLE,
+    GENERATOR_DESCRIPTION_MOON,
+    GENERATOR_DESCRIPTION_SPIRAL,
+    GENERATOR_DESCRIPTION_XOR,
+    GENERATOR_MOON,
+    GENERATOR_SPIRAL,
+    GENERATOR_VERSION,
+    GENERATOR_XOR,
+    MAX_PREVIEW_N,
+    MOON_N_POINTS_DEFAULT,
+    MOON_N_POINTS_MIN,
+    MOON_NOISE_DEFAULT,
+    MOON_NOISE_MIN,
+    MOON_TRAIN_RATIO_DEFAULT,
+    MOON_TRAIN_RATIO_MAX,
+    MOON_TRAIN_RATIO_MIN,
+    SPIRAL_ALGORITHM_DEFAULT,
+    SPIRAL_ALGORITHMS,
+    SPIRAL_N_POINTS_PER_SPIRAL_DEFAULT,
+    SPIRAL_N_POINTS_PER_SPIRAL_MIN,
+    SPIRAL_N_SPIRALS_DEFAULT,
+    SPIRAL_N_SPIRALS_MIN,
+    SPIRAL_NOISE_DEFAULT,
+    SPIRAL_NOISE_MIN,
+    SPIRAL_TRAIN_RATIO_DEFAULT,
+    SPIRAL_TRAIN_RATIO_MAX,
+    SPIRAL_TRAIN_RATIO_MIN,
+    XOR_N_POINTS_DEFAULT,
+    XOR_N_POINTS_MIN,
+    XOR_NOISE_DEFAULT,
+    XOR_NOISE_MIN,
+    XOR_TRAIN_RATIO_DEFAULT,
+    XOR_TRAIN_RATIO_MAX,
+    XOR_TRAIN_RATIO_MIN,
+)
 from juniper_data_client.exceptions import JuniperDataNotFoundError, JuniperDataValidationError
 from juniper_data_client.testing.generators import generate_circle, generate_moon, generate_spiral, generate_xor
 
@@ -52,110 +111,110 @@ from juniper_data_client.testing.generators import generate_circle, generate_moo
 
 _GENERATOR_CATALOG: List[Dict[str, Any]] = [
     {
-        "name": "spiral",
-        "description": "Multi-arm Archimedean spiral dataset",
-        "version": "1.0.0",
+        "name": GENERATOR_SPIRAL,
+        "description": GENERATOR_DESCRIPTION_SPIRAL,
+        "version": GENERATOR_VERSION,
         "parameters": ["n_spirals", "n_points_per_spiral", "noise", "seed", "algorithm", "train_ratio"],
     },
     {
-        "name": "xor",
-        "description": "XOR classification dataset with four corner clusters",
-        "version": "1.0.0",
+        "name": GENERATOR_XOR,
+        "description": GENERATOR_DESCRIPTION_XOR,
+        "version": GENERATOR_VERSION,
         "parameters": ["n_points", "noise", "seed", "train_ratio"],
     },
     {
-        "name": "circle",
-        "description": "Concentric circles classification dataset",
-        "version": "1.0.0",
+        "name": GENERATOR_CIRCLE,
+        "description": GENERATOR_DESCRIPTION_CIRCLE,
+        "version": GENERATOR_VERSION,
         "parameters": ["n_points", "noise", "factor", "seed", "train_ratio"],
     },
     {
-        "name": "moon",
-        "description": "Two interleaving half-moon classification dataset",
-        "version": "1.0.0",
+        "name": GENERATOR_MOON,
+        "description": GENERATOR_DESCRIPTION_MOON,
+        "version": GENERATOR_VERSION,
         "parameters": ["n_points", "noise", "seed", "train_ratio"],
     },
 ]
 
 _GENERATOR_SCHEMAS: Dict[str, Dict[str, Any]] = {
-    "spiral": {
+    GENERATOR_SPIRAL: {
         "type": "object",
         "properties": {
-            "n_spirals": {"type": "integer", "default": 2, "minimum": 2, "description": "Number of spiral arms"},
+            "n_spirals": {"type": "integer", "default": SPIRAL_N_SPIRALS_DEFAULT, "minimum": SPIRAL_N_SPIRALS_MIN, "description": "Number of spiral arms"},
             "n_points_per_spiral": {
                 "type": "integer",
-                "default": 100,
-                "minimum": 10,
+                "default": SPIRAL_N_POINTS_PER_SPIRAL_DEFAULT,
+                "minimum": SPIRAL_N_POINTS_PER_SPIRAL_MIN,
                 "description": "Points per spiral arm",
             },
-            "noise": {"type": "number", "default": 0.1, "minimum": 0.0, "description": "Gaussian noise level"},
+            "noise": {"type": "number", "default": SPIRAL_NOISE_DEFAULT, "minimum": SPIRAL_NOISE_MIN, "description": "Gaussian noise level"},
             "seed": {"type": "integer", "default": None, "description": "Random seed for reproducibility"},
             "algorithm": {
                 "type": "string",
-                "default": "modern",
-                "enum": ["modern", "legacy_cascor"],
+                "default": SPIRAL_ALGORITHM_DEFAULT,
+                "enum": SPIRAL_ALGORITHMS,
                 "description": "Generation algorithm",
             },
             "train_ratio": {
                 "type": "number",
-                "default": 0.8,
-                "minimum": 0.1,
-                "maximum": 0.99,
+                "default": SPIRAL_TRAIN_RATIO_DEFAULT,
+                "minimum": SPIRAL_TRAIN_RATIO_MIN,
+                "maximum": SPIRAL_TRAIN_RATIO_MAX,
                 "description": "Fraction of data for training",
             },
         },
         "required": [],
     },
-    "xor": {
+    GENERATOR_XOR: {
         "type": "object",
         "properties": {
-            "n_points": {"type": "integer", "default": 100, "minimum": 4, "description": "Total number of points"},
-            "noise": {"type": "number", "default": 0.1, "minimum": 0.0, "description": "Gaussian noise level"},
+            "n_points": {"type": "integer", "default": XOR_N_POINTS_DEFAULT, "minimum": XOR_N_POINTS_MIN, "description": "Total number of points"},
+            "noise": {"type": "number", "default": XOR_NOISE_DEFAULT, "minimum": XOR_NOISE_MIN, "description": "Gaussian noise level"},
             "seed": {"type": "integer", "default": None, "description": "Random seed for reproducibility"},
             "train_ratio": {
                 "type": "number",
-                "default": 0.8,
-                "minimum": 0.1,
-                "maximum": 0.99,
+                "default": XOR_TRAIN_RATIO_DEFAULT,
+                "minimum": XOR_TRAIN_RATIO_MIN,
+                "maximum": XOR_TRAIN_RATIO_MAX,
                 "description": "Fraction of data for training",
             },
         },
         "required": [],
     },
-    "circle": {
+    GENERATOR_CIRCLE: {
         "type": "object",
         "properties": {
-            "n_points": {"type": "integer", "default": 200, "minimum": 10, "description": "Total number of points"},
-            "noise": {"type": "number", "default": 0.1, "minimum": 0.0, "description": "Gaussian noise level"},
+            "n_points": {"type": "integer", "default": CIRCLE_N_POINTS_DEFAULT, "minimum": CIRCLE_N_POINTS_MIN, "description": "Total number of points"},
+            "noise": {"type": "number", "default": CIRCLE_NOISE_DEFAULT, "minimum": CIRCLE_NOISE_MIN, "description": "Gaussian noise level"},
             "factor": {
                 "type": "number",
-                "default": 0.5,
-                "minimum": 0.01,
-                "maximum": 0.99,
+                "default": CIRCLE_FACTOR_DEFAULT,
+                "minimum": CIRCLE_FACTOR_MIN,
+                "maximum": CIRCLE_FACTOR_MAX,
                 "description": "Inner/outer circle radius ratio",
             },
             "seed": {"type": "integer", "default": None, "description": "Random seed for reproducibility"},
             "train_ratio": {
                 "type": "number",
-                "default": 0.8,
-                "minimum": 0.1,
-                "maximum": 0.99,
+                "default": CIRCLE_TRAIN_RATIO_DEFAULT,
+                "minimum": CIRCLE_TRAIN_RATIO_MIN,
+                "maximum": CIRCLE_TRAIN_RATIO_MAX,
                 "description": "Fraction of data for training",
             },
         },
         "required": [],
     },
-    "moon": {
+    GENERATOR_MOON: {
         "type": "object",
         "properties": {
-            "n_points": {"type": "integer", "default": 200, "minimum": 10, "description": "Total number of points"},
-            "noise": {"type": "number", "default": 0.1, "minimum": 0.0, "description": "Gaussian noise level"},
+            "n_points": {"type": "integer", "default": MOON_N_POINTS_DEFAULT, "minimum": MOON_N_POINTS_MIN, "description": "Total number of points"},
+            "noise": {"type": "number", "default": MOON_NOISE_DEFAULT, "minimum": MOON_NOISE_MIN, "description": "Gaussian noise level"},
             "seed": {"type": "integer", "default": None, "description": "Random seed for reproducibility"},
             "train_ratio": {
                 "type": "number",
-                "default": 0.8,
-                "minimum": 0.1,
-                "maximum": 0.99,
+                "default": MOON_TRAIN_RATIO_DEFAULT,
+                "minimum": MOON_TRAIN_RATIO_MIN,
+                "maximum": MOON_TRAIN_RATIO_MAX,
                 "description": "Fraction of data for training",
             },
         },
@@ -165,10 +224,10 @@ _GENERATOR_SCHEMAS: Dict[str, Dict[str, Any]] = {
 
 # Maps generator names to their callable functions
 _GENERATOR_FUNCTIONS = {
-    "spiral": generate_spiral,
-    "xor": generate_xor,
-    "circle": generate_circle,
-    "moon": generate_moon,
+    GENERATOR_SPIRAL: generate_spiral,
+    GENERATOR_XOR: generate_xor,
+    GENERATOR_CIRCLE: generate_circle,
+    GENERATOR_MOON: generate_moon,
 }
 
 
@@ -186,7 +245,7 @@ class FakeDataClient:
             arrays = client.download_artifact_npz(result["dataset_id"])
     """
 
-    def __init__(self, base_url: str = "http://fake-data:8100", api_key: Optional[str] = None) -> None:
+    def __init__(self, base_url: str = FAKE_BASE_URL, api_key: Optional[str] = None) -> None:
         """Initialize the FakeDataClient.
 
         Args:
@@ -210,10 +269,10 @@ class FakeDataClient:
             Health status dictionary matching the real service format.
         """
         return {
-            "status": "ok",
-            "service": "juniper-data",
-            "version": "fake",
-            "uptime_seconds": 0.0,
+            "status": FAKE_SERVICE_STATUS,
+            "service": FAKE_SERVICE_NAME,
+            "version": FAKE_SERVICE_VERSION,
+            "uptime_seconds": FAKE_SERVICE_UPTIME_SECONDS,
         }
 
     def is_ready(self) -> bool:
@@ -224,7 +283,7 @@ class FakeDataClient:
         """
         return True
 
-    def wait_for_ready(self, timeout: float = 30.0, poll_interval: float = 0.5) -> bool:
+    def wait_for_ready(self, timeout: float = DEFAULT_READY_TIMEOUT, poll_interval: float = DEFAULT_READY_POLL_INTERVAL) -> bool:
         """Wait for readiness (returns immediately).
 
         Args:
@@ -324,7 +383,7 @@ class FakeDataClient:
             "n_full": n_full,
             "n_features": n_features,
             "n_classes": n_classes,
-            "dtype": "float32",
+            "dtype": DEFAULT_ARRAY_DTYPE,
             "created_at": now,
         }
 
@@ -346,7 +405,7 @@ class FakeDataClient:
             "generator": generator,
             "params": params,
             "meta": meta,
-            "artifact_url": f"/v1/datasets/{dataset_id}/artifact",
+            "artifact_url": ENDPOINT_DATASET_ARTIFACT_TEMPLATE.format(dataset_id=dataset_id),
             "created_at": now,
         }
 
@@ -359,12 +418,12 @@ class FakeDataClient:
 
     def create_spiral_dataset(
         self,
-        n_spirals: int = 2,
-        n_points_per_spiral: int = 100,
-        noise: float = 0.1,
+        n_spirals: int = SPIRAL_N_SPIRALS_DEFAULT,
+        n_points_per_spiral: int = SPIRAL_N_POINTS_PER_SPIRAL_DEFAULT,
+        noise: float = SPIRAL_NOISE_DEFAULT,
         seed: Optional[int] = None,
-        algorithm: str = "modern",
-        train_ratio: float = 0.8,
+        algorithm: str = SPIRAL_ALGORITHM_DEFAULT,
+        train_ratio: float = SPIRAL_TRAIN_RATIO_DEFAULT,
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Convenience method for creating spiral datasets.
@@ -394,7 +453,7 @@ class FakeDataClient:
             params["seed"] = seed
         params.update(kwargs)
 
-        return self.create_dataset("spiral", params)
+        return self.create_dataset(GENERATOR_SPIRAL, params)
 
     # ------------------------------------------------------------------
     # Dataset versioning
@@ -448,7 +507,7 @@ class FakeDataClient:
     # Dataset listing / metadata / deletion
     # ------------------------------------------------------------------
 
-    def list_datasets(self, limit: int = 100, offset: int = 0) -> List[str]:
+    def list_datasets(self, limit: int = DEFAULT_LIST_LIMIT, offset: int = DEFAULT_LIST_OFFSET) -> List[str]:
         """List dataset IDs stored in the fake.
 
         Args:
@@ -539,7 +598,7 @@ class FakeDataClient:
     # Preview
     # ------------------------------------------------------------------
 
-    def get_preview(self, dataset_id: str, n: int = 100) -> Dict[str, Any]:
+    def get_preview(self, dataset_id: str, n: int = DEFAULT_PREVIEW_N) -> Dict[str, Any]:
         """Get a JSON-serializable preview of dataset samples.
 
         Returns the first ``n`` samples from the full dataset (X_full / y_full).
@@ -562,7 +621,7 @@ class FakeDataClient:
         y_full = arrays["y_full"]
 
         # Cap at available samples and the requested count
-        n_available = min(n, X_full.shape[0], 1000)
+        n_available = min(n, X_full.shape[0], MAX_PREVIEW_N)
 
         return {
             "n_samples": int(n_available),
@@ -619,7 +678,7 @@ class FakeDataClient:
                         "dataset_id": resp["dataset_id"],
                         "generator": item["generator"],
                         "success": True,
-                        "artifact_url": f"/v1/datasets/{resp['dataset_id']}/artifact",
+                        "artifact_url": ENDPOINT_DATASET_ARTIFACT_TEMPLATE.format(dataset_id=resp["dataset_id"]),
                     }
                 )
                 total_created += 1

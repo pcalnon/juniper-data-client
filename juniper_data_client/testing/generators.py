@@ -29,6 +29,34 @@ from typing import Dict, Optional
 
 import numpy as np
 
+from juniper_data_client.constants import (
+    CIRCLE_FACTOR_DEFAULT,
+    CIRCLE_N_POINTS_DEFAULT,
+    CIRCLE_NOISE_DEFAULT,
+    CIRCLE_NUM_CLASSES,
+    CIRCLE_TRAIN_RATIO_DEFAULT,
+    MOON_LOWER_X_OFFSET,
+    MOON_LOWER_Y_OFFSET,
+    MOON_LOWER_Y_SHIFT,
+    MOON_N_POINTS_DEFAULT,
+    MOON_NOISE_DEFAULT,
+    MOON_NUM_CLASSES,
+    MOON_TRAIN_RATIO_DEFAULT,
+    SPIRAL_ANGLE_TURNS,
+    SPIRAL_N_POINTS_PER_SPIRAL_DEFAULT,
+    SPIRAL_N_SPIRALS_DEFAULT,
+    SPIRAL_NOISE_DEFAULT,
+    SPIRAL_RADIUS_SCALE,
+    SPIRAL_TRAIN_RATIO_DEFAULT,
+    XOR_CORNER_LABELS,
+    XOR_CORNERS,
+    XOR_N_POINTS_DEFAULT,
+    XOR_NOISE_DEFAULT,
+    XOR_NUM_CLASSES,
+    XOR_NUM_CORNERS,
+    XOR_TRAIN_RATIO_DEFAULT,
+)
+
 
 def _one_hot_encode(labels: np.ndarray, n_classes: int) -> np.ndarray:
     """Convert integer class labels to one-hot encoded float32 arrays.
@@ -80,11 +108,11 @@ def _split_dataset(
 
 
 def generate_spiral(
-    n_spirals: int = 2,
-    n_points_per_spiral: int = 100,
-    noise: float = 0.1,
+    n_spirals: int = SPIRAL_N_SPIRALS_DEFAULT,
+    n_points_per_spiral: int = SPIRAL_N_POINTS_PER_SPIRAL_DEFAULT,
+    noise: float = SPIRAL_NOISE_DEFAULT,
     seed: Optional[int] = None,
-    train_ratio: float = 0.8,
+    train_ratio: float = SPIRAL_TRAIN_RATIO_DEFAULT,
 ) -> Dict[str, np.ndarray]:
     """Generate a multi-arm spiral dataset.
 
@@ -115,8 +143,8 @@ def generate_spiral(
         # Evenly spaced parameter along the spiral arm
         t = np.linspace(0, 1, n_points_per_spiral)
         # Radius grows linearly; angle spans multiple turns
-        radius = t * 5.0
-        angle = t * 4.0 * np.pi + (2.0 * np.pi * spiral_idx / n_spirals)
+        radius = t * SPIRAL_RADIUS_SCALE
+        angle = t * SPIRAL_ANGLE_TURNS * np.pi + (2.0 * np.pi * spiral_idx / n_spirals)
 
         X[start:end, 0] = radius * np.cos(angle) + rng.normal(0, noise, n_points_per_spiral).astype(np.float32)
         X[start:end, 1] = radius * np.sin(angle) + rng.normal(0, noise, n_points_per_spiral).astype(np.float32)
@@ -127,10 +155,10 @@ def generate_spiral(
 
 
 def generate_xor(
-    n_points: int = 100,
-    noise: float = 0.1,
+    n_points: int = XOR_N_POINTS_DEFAULT,
+    noise: float = XOR_NOISE_DEFAULT,
     seed: Optional[int] = None,
-    train_ratio: float = 0.8,
+    train_ratio: float = XOR_TRAIN_RATIO_DEFAULT,
 ) -> Dict[str, np.ndarray]:
     """Generate an XOR dataset.
 
@@ -150,12 +178,12 @@ def generate_xor(
     """
     rng = np.random.default_rng(seed)
 
-    # Four XOR corners with their class labels
-    corners = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0]], dtype=np.float32)
-    corner_labels = np.array([0, 1, 1, 0], dtype=np.int64)
+    # Four XOR corners with their class labels (sourced from constants)
+    corners = np.array(XOR_CORNERS, dtype=np.float32)
+    corner_labels = np.array(XOR_CORNER_LABELS, dtype=np.int64)
 
-    points_per_corner = n_points // 4
-    remainder = n_points - (points_per_corner * 4)
+    points_per_corner = n_points // XOR_NUM_CORNERS
+    remainder = n_points - (points_per_corner * XOR_NUM_CORNERS)
 
     all_X = []
     all_labels = []
@@ -170,16 +198,16 @@ def generate_xor(
     X = np.vstack(all_X).astype(np.float32)
     labels = np.concatenate(all_labels)
 
-    y_one_hot = _one_hot_encode(labels, 2)
+    y_one_hot = _one_hot_encode(labels, XOR_NUM_CLASSES)
     return _split_dataset(X, y_one_hot, train_ratio, rng)
 
 
 def generate_circle(
-    n_points: int = 200,
-    noise: float = 0.1,
-    factor: float = 0.5,
+    n_points: int = CIRCLE_N_POINTS_DEFAULT,
+    noise: float = CIRCLE_NOISE_DEFAULT,
+    factor: float = CIRCLE_FACTOR_DEFAULT,
     seed: Optional[int] = None,
-    train_ratio: float = 0.8,
+    train_ratio: float = CIRCLE_TRAIN_RATIO_DEFAULT,
 ) -> Dict[str, np.ndarray]:
     """Generate a concentric circles dataset.
 
@@ -226,15 +254,15 @@ def generate_circle(
         ]
     )
 
-    y_one_hot = _one_hot_encode(labels, 2)
+    y_one_hot = _one_hot_encode(labels, CIRCLE_NUM_CLASSES)
     return _split_dataset(X, y_one_hot, train_ratio, rng)
 
 
 def generate_moon(
-    n_points: int = 200,
-    noise: float = 0.1,
+    n_points: int = MOON_N_POINTS_DEFAULT,
+    noise: float = MOON_NOISE_DEFAULT,
     seed: Optional[int] = None,
-    train_ratio: float = 0.8,
+    train_ratio: float = MOON_TRAIN_RATIO_DEFAULT,
 ) -> Dict[str, np.ndarray]:
     """Generate a two-moons dataset.
 
@@ -263,8 +291,8 @@ def generate_moon(
 
     # Lower moon (class 1) — semicircle from 0 to pi, shifted right and down
     lower_angles = np.linspace(0, np.pi, n_lower)
-    lower_x = 1.0 - np.cos(lower_angles) + rng.normal(0, noise, n_lower)
-    lower_y = 1.0 - np.sin(lower_angles) - 0.5 + rng.normal(0, noise, n_lower)
+    lower_x = MOON_LOWER_X_OFFSET - np.cos(lower_angles) + rng.normal(0, noise, n_lower)
+    lower_y = MOON_LOWER_Y_OFFSET - np.sin(lower_angles) - MOON_LOWER_Y_SHIFT + rng.normal(0, noise, n_lower)
 
     X = np.vstack(
         [
@@ -280,5 +308,5 @@ def generate_moon(
         ]
     )
 
-    y_one_hot = _one_hot_encode(labels, 2)
+    y_one_hot = _one_hot_encode(labels, MOON_NUM_CLASSES)
     return _split_dataset(X, y_one_hot, train_ratio, rng)
