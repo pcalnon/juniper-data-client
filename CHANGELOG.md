@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- New `juniper_data_client/constants.py` module centralizing every previously inline literal: `API_KEY_*` and `API_VERSION_*` wire-protocol identifiers, the full set of `ENDPOINT_*` paths (including f-string templates for parameterized routes), `DEFAULT_*` constructor defaults, `RETRY_*` tuning, and per-generator parameter defaults (spiral, xor, circles, gaussian, checkerboard) used by `testing/generators.py`.
+
+### Changed
+
+- `client.py`, `testing/fake_client.py`, and `testing/generators.py` now import from `juniper_data_client.constants` instead of embedding inline literals (~87 replacements total).
+- `API_KEY_HEADER_NAME` and `API_VERSION_PATH_SUFFIX` are bit-identical to the corresponding values exposed by the `juniper-data` server, eliminating literal duplication across the client/server boundary.
+- `AGENTS.md` gained a new "Constants" section documenting the categories, server alignment, and contribution rules for the constants module.
+
+### Notes
+
+- No public API changes; constructor signatures and method behavior are unchanged.
+- All 153 existing tests pass without modification; pre-commit (19 hooks) is clean.
+
 ## [0.4.0] - 2026-04-08
 
 **Summary**: New public API surface -- batch operations, dataset versioning, and extended create_dataset parameters. Includes performance benchmarks and CI dependency updates.

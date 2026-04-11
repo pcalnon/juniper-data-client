@@ -124,6 +124,7 @@ juniper-data-client/
 | File | Purpose |
 |------|---------|
 | `juniper_data_client/client.py` | `JuniperDataClient` class — all HTTP API methods |
+| `juniper_data_client/constants.py` | Module-level constants (endpoint paths, header names, defaults, generator parameter defaults) |
 | `juniper_data_client/exceptions.py` | Exception hierarchy (5 specific exception types) |
 | `juniper_data_client/__init__.py` | Public API exports and `__version__` |
 | `juniper_data_client/py.typed` | PEP 561 marker enabling type checking for consumers |
@@ -307,6 +308,34 @@ All generators return `Dict[str, np.ndarray]` with keys `X_train`, `y_train`, `X
 | `retries` | int | 3 | Max retry attempts |
 | `backoff_factor` | float | 0.5 | Exponential backoff multiplier |
 | `api_key` | str | None | API key (or use env var) |
+
+---
+
+## Constants
+
+All numeric, string, and structural defaults used by the client and its testing utilities are centralized in `juniper_data_client/constants.py`. Application code (`client.py`, `testing/fake_client.py`, `testing/generators.py`) imports from this module rather than embedding inline literals.
+
+### Categories
+
+| Prefix / Group | Examples | Purpose |
+|----------------|----------|---------|
+| `API_KEY_*`, `API_VERSION_*` | `API_KEY_HEADER_NAME='X-API-Key'`, `API_KEY_ENV_VAR='JUNIPER_DATA_API_KEY'`, `API_VERSION_PATH_SUFFIX='/v1'` | Wire-protocol identifiers shared with the `juniper-data` server |
+| `ENDPOINT_*` | `ENDPOINT_DATASETS='/v1/datasets'`, `ENDPOINT_HEALTH='/v1/health'`, `ENDPOINT_DATASET_BY_ID_TEMPLATE` | Full HTTP paths for every server endpoint the client calls (incl. f-string templates) |
+| `DEFAULT_*` | `DEFAULT_TIMEOUT_SECONDS=30`, `DEFAULT_RETRIES=3`, `DEFAULT_BACKOFF_FACTOR=0.5` | Constructor defaults for `JuniperDataClient` |
+| `RETRY_*` | `RETRY_STATUS_CODES_DEFAULT`, `RETRY_TOTAL_DEFAULT` | Retry/backoff tuning |
+| Generator parameter defaults | `SPIRAL_*`, `XOR_*`, `CIRCLES_*`, `GAUSSIAN_*`, `CHECKERBOARD_*` | Default values for the synthetic dataset generators in `testing/generators.py` |
+
+### Alignment with `juniper-data`
+
+`API_KEY_HEADER_NAME` and `API_VERSION_PATH_SUFFIX` are bit-identical to the corresponding values on the server side (`juniper_data.api.constants.HEADER_X_API_KEY` and the `/v1` router prefix). All `ENDPOINT_*` paths equal `<server router prefix> + <relative route>`.
+
+### Modifying
+
+When adding a new HTTP endpoint or constructor parameter:
+
+1. Add the constant to `constants.py` first (with a docstring noting any cross-repo coupling)
+2. Reference it from `client.py` (or `fake_client.py` / `generators.py`)
+3. Never embed the literal value inline in application code
 
 ---
 
