@@ -80,7 +80,7 @@ httptools==0.7.1
 httpx==0.28.1
 identify==2.6.16
 idna==3.11
-importlib_metadata==8.7.0
+importlib_metadata==9.0.0
 iniconfig==2.3.0
 isort==7.0.0
 jschema-to-python==1.2.3
