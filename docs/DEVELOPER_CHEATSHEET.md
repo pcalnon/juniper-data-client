@@ -159,5 +159,5 @@ except JuniperDataTimeoutError:
 - [juniper-data-client REFERENCE.md](REFERENCE.md) -- Full API reference
 - [juniper-data-client QUICK_START.md](QUICK_START.md) -- Getting started guide
 - [juniper-data-client AGENTS.md](../AGENTS.md) -- Agent development guide
-- [Ecosystem Cheatsheet](../../juniper-ml/docs/DEVELOPER_CHEATSHEET_JUNIPER-ML.md) -- Cross-project procedures
-- [Data Contract](../../CLAUDE.md#data-contract) -- NPZ artifact format specification
+- [Ecosystem Cheatsheet](../juniper-ml/docs/DEVELOPER_CHEATSHEET_JUNIPER-ML.md) -- Cross-project procedures
+- [Data Contract](../CLAUDE.md#data-contract) -- NPZ artifact format specification

@@ -22,15 +22,15 @@
 
 ### I Want To
 
-| Goal | Document | Location |
-|------|----------|----------|
-| **Install and use the client** | [QUICK_START.md](QUICK_START.md) | docs/ |
-| **See the full API reference** | [REFERENCE.md](REFERENCE.md) | docs/ |
-| **Understand the project** | [README.md](../README.md) | Root |
-| **See development conventions** | [AGENTS.md](../AGENTS.md) | Root |
-| **See version history** | [CHANGELOG.md](../CHANGELOG.md) | Root |
-| **Quick-reference dev tasks** | [DEVELOPER_CHEATSHEET.md](DEVELOPER_CHEATSHEET.md) | docs/ |
-| **Run tests** | [AGENTS.md](../AGENTS.md) | Root |
+| Goal                            | Document                                           | Location |
+|---------------------------------|----------------------------------------------------|----------|
+| **Install and use the client**  | [QUICK_START.md](QUICK_START.md)                   | docs/    |
+| **See the full API reference**  | [REFERENCE.md](REFERENCE.md)                       | docs/    |
+| **Understand the project**      | [README.md](../README.md)                          | Root     |
+| **See development conventions** | [AGENTS.md](../AGENTS.md)                          | Root     |
+| **See version history**         | [CHANGELOG.md](../CHANGELOG.md)                    | Root     |
+| **Quick-reference dev tasks**   | [DEVELOPER_CHEATSHEET.md](DEVELOPER_CHEATSHEET.md) | docs/    |
+| **Run tests**                   | [AGENTS.md](../AGENTS.md)                          | Root     |
 
 ---
 
@@ -38,20 +38,20 @@
 
 ### docs/ Directory
 
-| File | Lines | Type | Purpose |
-|------|-------|------|---------|
-| **DOCUMENTATION_OVERVIEW.md** | ~120 | Overview | This file -- navigation index |
-| **QUICK_START.md** | ~130 | Tutorial | Install, configure, and use in 5 minutes |
-| **REFERENCE.md** | ~260 | Reference | Complete API, configuration, and exception reference |
-| **DEVELOPER_CHEATSHEET.md** | ~100 | Cheatsheet | Quick-reference card for common development tasks |
+| File                          | Lines | Type       | Purpose                                              |
+|-------------------------------|-------|------------|------------------------------------------------------|
+| **DOCUMENTATION_OVERVIEW.md** | ~120  | Overview   | This file -- navigation index                        |
+| **QUICK_START.md**            | ~130  | Tutorial   | Install, configure, and use in 5 minutes             |
+| **REFERENCE.md**              | ~260  | Reference  | Complete API, configuration, and exception reference |
+| **DEVELOPER_CHEATSHEET.md**   | ~100  | Cheatsheet | Quick-reference card for common development tasks    |
 
 ### Root Directory
 
-| File | Lines | Type | Purpose |
-|------|-------|------|---------|
-| **README.md** | ~220 | Overview | Project overview, features, quick examples |
-| **AGENTS.md** | ~200 | Guide | Development conventions, commands, worktree setup |
-| **CHANGELOG.md** | ~150 | History | Version history and release notes |
+| File             | Lines | Type     | Purpose                                           |
+|------------------|-------|----------|---------------------------------------------------|
+| **README.md**    | ~220  | Overview | Project overview, features, quick examples        |
+| **AGENTS.md**    | ~200  | Guide    | Development conventions, commands, worktree setup |
+| **CHANGELOG.md** | ~150  | History  | Version history and release notes                 |
 
 ---
 
@@ -64,7 +64,7 @@
 
 ### Dependency Graph
 
-```
+```bash
 juniper-data-client ──calls──> juniper-data (REST API, port 8100)
 juniper-cascor ──uses──> juniper-data-client
 juniper-canopy ──uses──> juniper-data-client
@@ -74,8 +74,8 @@ juniper-ml ──meta-package──> juniper-data-client
 ### Compatibility
 
 | juniper-data-client | juniper-data | juniper-cascor | juniper-canopy |
-|---------------------|-------------|----------------|----------------|
-| 0.3.x | 0.4.x | 0.3.x | 0.2.x |
+|---------------------|--------------|----------------|----------------|
+| 0.3.x               | 0.4.x        | 0.3.x          | 0.2.x          |
 
 ---
 
@@ -101,4 +101,4 @@ juniper-ml ──meta-package──> juniper-data-client
 **Version:** 0.3.1
 **Maintainer:** Paul Calnon
 
-> See the [Juniper Ecosystem Guide](../../CLAUDE.md) for the full project map and dependency graph.
+> See the [Juniper Ecosystem Guide](../CLAUDE.md) for the full project map and dependency graph.
