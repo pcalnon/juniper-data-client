@@ -82,7 +82,7 @@ identify==2.6.16
 idna==3.11
 importlib_metadata==8.7.0
 iniconfig==2.3.0
-isort==7.0.0
+isort==8.0.1
 jschema-to-python==1.2.3
 jsonpickle==4.1.1
 juniper-data==0.5.0
