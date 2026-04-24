@@ -26,7 +26,15 @@ DEFAULT_TIMEOUT: int = 30
 DEFAULT_RETRIES: int = 3
 DEFAULT_BACKOFF_FACTOR: float = 0.5
 RETRYABLE_STATUS_CODES: List[int] = [429, 500, 502, 503, 504]
-RETRY_ALLOWED_METHODS: List[str] = ["HEAD", "GET", "POST", "PATCH", "DELETE"]
+# XREPO-11 (2026-04-24): auto-retry is now restricted to idempotent
+# HTTP methods per RFC 9110 §9.2.2. POST, PATCH and DELETE were
+# previously included, which could cause duplicate dataset creation
+# (on POST) or repeated side-effects (on DELETE) when transient 5xx
+# responses retried a request that had already been applied
+# server-side. Callers that need retry for mutations must implement
+# their own idempotency layer (e.g., use client-supplied dataset
+# names so POST collapses server-side via the existing dedupe path).
+RETRY_ALLOWED_METHODS: List[str] = ["HEAD", "GET", "PUT"]
 HTTP_POOL_CONNECTIONS: int = 10
 HTTP_POOL_MAXSIZE: int = 10
 
