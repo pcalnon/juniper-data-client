@@ -64,13 +64,13 @@ class TestFakeClientPerformance:
         assert elapsed < 0.1, f"XOR creation took {elapsed:.4f}s (limit 0.1s)"
         print(f"  fake xor create: {elapsed * 1000:.2f} ms")
 
-    def test_create_circle_latency(self, fake_client: FakeDataClient) -> None:
-        """Single circle dataset creation completes in < 100 ms."""
-        elapsed, result = _measure(fake_client.create_dataset, "circle", {"n_points": 200, "seed": 3})
+    def test_create_circles_latency(self, fake_client: FakeDataClient) -> None:
+        """Single circles dataset creation completes in < 100 ms."""
+        elapsed, result = _measure(fake_client.create_dataset, "circles", {"n_points": 200, "seed": 3})
 
         assert "dataset_id" in result
-        assert elapsed < 0.1, f"Circle creation took {elapsed:.4f}s (limit 0.1s)"
-        print(f"  fake circle create: {elapsed * 1000:.2f} ms")
+        assert elapsed < 0.1, f"Circles creation took {elapsed:.4f}s (limit 0.1s)"
+        print(f"  fake circles create: {elapsed * 1000:.2f} ms")
 
     def test_create_moon_latency(self, fake_client: FakeDataClient) -> None:
         """Single moon dataset creation completes in < 100 ms."""
@@ -97,7 +97,7 @@ class TestFakeClientPerformance:
 
     def test_batch_create_30_datasets(self, fake_client: FakeDataClient) -> None:
         """Batch-creating 30 datasets completes in < 1 s."""
-        generators = ["spiral", "xor", "circle", "moon"]
+        generators = ["spiral", "xor", "circles", "moon"]
         specs: List[Dict[str, Any]] = [{"generator": generators[i % len(generators)], "params": {"seed": i}} for i in range(30)]
 
         elapsed, result = _measure(fake_client.batch_create, specs)
@@ -220,7 +220,7 @@ class TestFakeClientPerformance:
     def test_batch_export_10_latency(self, fake_client: FakeDataClient) -> None:
         """Exporting 10 datasets as a ZIP archive completes in < 1 s."""
         ids = []
-        generators = ["spiral", "xor", "circle", "moon"]
+        generators = ["spiral", "xor", "circles", "moon"]
         for i in range(10):
             ds = fake_client.create_dataset(generators[i % len(generators)], {"seed": i + 200})
             ids.append(ds["dataset_id"])

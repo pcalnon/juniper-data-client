@@ -202,12 +202,12 @@ class TestGetLatest:
 
     def test_get_latest_returns_full_metadata(self, fake_client: FakeDataClient) -> None:
         """get_latest returns a complete metadata dict with all standard fields."""
-        fake_client.create_dataset("circle", {"seed": 42}, name="full-meta", description="Latest circle", created_by="test-suite")
+        fake_client.create_dataset("circles", {"seed": 42}, name="full-meta", description="Latest circle", created_by="test-suite")
 
         latest = fake_client.get_latest("full-meta")
 
         assert "dataset_id" in latest
-        assert latest["generator"] == "circle"
+        assert latest["generator"] == "circles"
         assert "params" in latest
         assert "artifact_url" in latest
         assert latest["meta"]["dataset_name"] == "full-meta"
