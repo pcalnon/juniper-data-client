@@ -10,17 +10,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - New `juniper_data_client/constants.py` module centralizing every previously inline literal: `API_KEY_*` and `API_VERSION_*` wire-protocol identifiers, the full set of `ENDPOINT_*` paths (including f-string templates for parameterized routes), `DEFAULT_*` constructor defaults, `RETRY_*` tuning, and per-generator parameter defaults (spiral, xor, circles, gaussian, checkerboard) used by `testing/generators.py`.
+- **DC-03 / XREPO-01c**: constants for the five server-side generators the client previously lacked -- `GENERATOR_GAUSSIAN`, `GENERATOR_CHECKERBOARD`, `GENERATOR_CSV_IMPORT`, `GENERATOR_MNIST`, `GENERATOR_ARC_AGI` -- with matching `GENERATOR_DESCRIPTION_*` entries. Downstream code should now import these instead of hardcoding string literals.
+- `tests/test_generator_parity.py`: parity suite that prevents future drift between client generator constants and the server `GENERATOR_REGISTRY`, and exercises the legacy `"circle"` -> `"circles"` alias through the fake client.
 
 ### Changed
 
 - `client.py`, `testing/fake_client.py`, and `testing/generators.py` now import from `juniper_data_client.constants` instead of embedding inline literals (~87 replacements total).
 - `API_KEY_HEADER_NAME` and `API_VERSION_PATH_SUFFIX` are bit-identical to the corresponding values exposed by the `juniper-data` server, eliminating literal duplication across the client/server boundary.
 - `AGENTS.md` gained a new "Constants" section documenting the categories, server alignment, and contribution rules for the constants module.
+- **DC-01 / XREPO-01 (BREAKING, with deprecation alias)**: `GENERATOR_CIRCLE` now resolves to `"circles"` to match the server registry key; the previous value `"circle"` was silently rejected by the server with HTTP 400. Callers passing the legacy string to `FakeDataClient.create_dataset()` or `get_generator_schema()` are transparently routed to the new name and emit a `DeprecationWarning`. A new `GENERATOR_CIRCLE_LEGACY` constant exposes the old value for one release cycle.
+- Existing fake-client tests updated to use the canonical `"circles"` name; a dedicated legacy-alias regression lives in `tests/test_generator_parity.py`.
+
+### Deprecated
+
+- The legacy generator name `"circle"` (and the `GENERATOR_CIRCLE_LEGACY` constant). Both will be removed after the next release; migrate callers to `GENERATOR_CIRCLE` / `"circles"` now.
 
 ### Notes
 
-- No public API changes; constructor signatures and method behavior are unchanged.
-- All 153 existing tests pass without modification; pre-commit (19 hooks) is clean.
+- No public method signatures change; only the value of `GENERATOR_CIRCLE` and the set of available generator constants.
+- Server counterpart (`juniper-data`) is gaining a `MoonGenerator` to match `GENERATOR_MOON` in the same release cycle (XREPO-01b / DC-02).
 
 ## [0.4.0] - 2026-04-08
 

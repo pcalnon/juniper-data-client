@@ -85,10 +85,26 @@ DEFAULT_ARRAY_DTYPE: str = "float32"
 
 # ─── Generator Names ─────────────────────────────────────────────────────────
 
+# Generator identifiers MUST match the keys in the server-side
+# ``GENERATOR_REGISTRY`` (juniper_data/api/routes/generators.py). The
+# parity test ``tests/test_generator_parity.py`` enforces this invariant.
+# DC-01/XREPO-01 fix (2026-04-24): ``GENERATOR_CIRCLE`` changed from
+# ``"circle"`` to ``"circles"`` to match the server. The legacy
+# ``GENERATOR_CIRCLE_LEGACY`` alias is retained for one release cycle so
+# downstream callers have time to migrate.
 GENERATOR_SPIRAL: str = "spiral"
 GENERATOR_XOR: str = "xor"
-GENERATOR_CIRCLE: str = "circle"
+GENERATOR_CIRCLE: str = "circles"
+GENERATOR_CIRCLE_LEGACY: str = "circle"  # deprecated — use GENERATOR_CIRCLE
 GENERATOR_MOON: str = "moon"
+# DC-03/XREPO-01c (2026-04-24): added constants for the 5 server
+# generators the client previously lacked, so downstream code can avoid
+# hardcoding string literals.
+GENERATOR_GAUSSIAN: str = "gaussian"
+GENERATOR_CHECKERBOARD: str = "checkerboard"
+GENERATOR_CSV_IMPORT: str = "csv_import"
+GENERATOR_MNIST: str = "mnist"
+GENERATOR_ARC_AGI: str = "arc_agi"
 
 # ─── Generator Catalog Metadata ──────────────────────────────────────────────
 
@@ -97,6 +113,11 @@ GENERATOR_DESCRIPTION_SPIRAL: str = "Multi-arm Archimedean spiral dataset"
 GENERATOR_DESCRIPTION_XOR: str = "XOR classification dataset with four corner clusters"
 GENERATOR_DESCRIPTION_CIRCLE: str = "Concentric circles classification dataset"
 GENERATOR_DESCRIPTION_MOON: str = "Two interleaving half-moon classification dataset"
+GENERATOR_DESCRIPTION_GAUSSIAN: str = "Gaussian blobs classification dataset"
+GENERATOR_DESCRIPTION_CHECKERBOARD: str = "Checkerboard pattern classification dataset"
+GENERATOR_DESCRIPTION_CSV_IMPORT: str = "CSV/JSON import for custom datasets"
+GENERATOR_DESCRIPTION_MNIST: str = "MNIST and Fashion-MNIST digit classification dataset"
+GENERATOR_DESCRIPTION_ARC_AGI: str = "ARC-AGI visual reasoning tasks dataset"
 
 # ─── Generator Defaults — Spiral ─────────────────────────────────────────────
 

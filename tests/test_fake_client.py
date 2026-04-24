@@ -85,10 +85,15 @@ class TestGeneratorCatalog:
         assert len(generators) == 4, f"Expected 4 generators, got {len(generators)}"
 
     def test_list_generators_has_expected_names(self, fake_client: FakeDataClient) -> None:
-        """list_generators() includes spiral, xor, circle, and moon."""
+        """list_generators() includes spiral, xor, circles (canonical), and moon.
+
+        DC-01 (2026-04-24): the canonical name is ``"circles"`` to match
+        the server registry; the legacy ``"circle"`` alias is accepted
+        by the fake but is not surfaced in the catalog.
+        """
         generators = fake_client.list_generators()
         names = {g["name"] for g in generators}
-        expected = {"spiral", "xor", "circle", "moon"}
+        expected = {"spiral", "xor", "circles", "moon"}
         assert names == expected, f"Expected generators {expected}, got {names}"
 
     def test_get_generator_schema_spiral(self, fake_client: FakeDataClient) -> None:
@@ -134,11 +139,15 @@ class TestDatasetCreation:
         assert "dataset_id" in result
         assert result["generator"] == "xor"
 
-    def test_create_dataset_circle(self, fake_client: FakeDataClient) -> None:
-        """create_dataset('circle', ...) succeeds and returns valid metadata."""
-        result = fake_client.create_dataset("circle", {"n_points": 200, "seed": 42})
+    def test_create_dataset_circles(self, fake_client: FakeDataClient) -> None:
+        """create_dataset('circles', ...) succeeds and returns valid metadata.
+
+        DC-01 (2026-04-24): canonical name is ``"circles"`` — the legacy
+        ``"circle"`` alias is covered in ``test_generator_parity.py``.
+        """
+        result = fake_client.create_dataset("circles", {"n_points": 200, "seed": 42})
         assert "dataset_id" in result
-        assert result["generator"] == "circle"
+        assert result["generator"] == "circles"
 
     def test_create_dataset_moon(self, fake_client: FakeDataClient) -> None:
         """create_dataset('moon', ...) succeeds and returns valid metadata."""
@@ -213,7 +222,7 @@ class TestDatasetListing:
     def test_list_datasets_after_creation(self, fake_client: FakeDataClient) -> None:
         """list_datasets() includes IDs of all created datasets."""
         ids = []
-        for gen in ("spiral", "xor", "circle"):
+        for gen in ("spiral", "xor", "circles"):
             r = fake_client.create_dataset(gen, {"seed": 1})
             ids.append(r["dataset_id"])
 

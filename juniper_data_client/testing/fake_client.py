@@ -38,6 +38,7 @@ Usage::
 import inspect
 import io
 import uuid
+import warnings
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -67,6 +68,7 @@ from juniper_data_client.constants import (
     FAKE_SERVICE_UPTIME_SECONDS,
     FAKE_SERVICE_VERSION,
     GENERATOR_CIRCLE,
+    GENERATOR_CIRCLE_LEGACY,
     GENERATOR_DESCRIPTION_CIRCLE,
     GENERATOR_DESCRIPTION_MOON,
     GENERATOR_DESCRIPTION_SPIRAL,
@@ -222,13 +224,42 @@ _GENERATOR_SCHEMAS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# Maps generator names to their callable functions
+# Maps generator names to their callable functions. Keys here MUST
+# match the server-side ``GENERATOR_REGISTRY`` so the fake cannot
+# silently accept names that the real service rejects (DC-04 adjacent).
 _GENERATOR_FUNCTIONS = {
     GENERATOR_SPIRAL: generate_spiral,
     GENERATOR_XOR: generate_xor,
     GENERATOR_CIRCLE: generate_circle,
     GENERATOR_MOON: generate_moon,
 }
+
+# DC-01/XREPO-01 (2026-04-24): one-release-cycle backward-compat map
+# so callers still passing the old ``"circle"`` literal get their
+# requests transparently routed to the correct ``"circles"`` generator
+# with a ``DeprecationWarning``. Remove in the release after v0.5.
+_GENERATOR_LEGACY_ALIASES: Dict[str, str] = {
+    GENERATOR_CIRCLE_LEGACY: GENERATOR_CIRCLE,
+}
+
+
+def _resolve_generator_alias(name: str) -> str:
+    """Map a legacy generator name to its canonical server-side key.
+
+    Emits a ``DeprecationWarning`` on every legacy use so downstream
+    callers are prompted to migrate to the new constant before the
+    alias is removed.
+    """
+    canonical = _GENERATOR_LEGACY_ALIASES.get(name)
+    if canonical is None:
+        return name
+    warnings.warn(
+        f"Generator name {name!r} is deprecated; use {canonical!r} instead. "
+        "The legacy alias will be removed in a future release.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
+    return canonical
 
 
 class FakeDataClient:
@@ -319,6 +350,7 @@ class FakeDataClient:
         Raises:
             JuniperDataNotFoundError: If the generator name is not recognized.
         """
+        name = _resolve_generator_alias(name)
         if name not in _GENERATOR_SCHEMAS:
             raise JuniperDataNotFoundError(f"Generator not found: {name}")
         return dict(_GENERATOR_SCHEMAS[name])
@@ -356,6 +388,7 @@ class FakeDataClient:
         Raises:
             JuniperDataValidationError: If the generator name is not recognized.
         """
+        generator = _resolve_generator_alias(generator)
         if generator not in _GENERATOR_FUNCTIONS:
             raise JuniperDataValidationError(f"Unknown generator: {generator}")
 

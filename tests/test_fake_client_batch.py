@@ -135,7 +135,7 @@ class TestBatchCreate:
     def test_result_fields_present(self, fake_client: FakeDataClient) -> None:
         """Each batch_create result entry has index, dataset_id, generator, and success fields."""
         specs = [
-            {"generator": "circle", "params": {"seed": 10}},
+            {"generator": "circles", "params": {"seed": 10}},
             {"generator": "moon", "params": {"seed": 20}},
         ]
 
@@ -227,7 +227,7 @@ class TestBatchUpdateTags:
 
     def test_tags_actually_updated_via_metadata(self, fake_client: FakeDataClient) -> None:
         """Tags set by batch_update_tags are visible in get_dataset_metadata."""
-        r1 = fake_client.create_dataset("circle", {"seed": 42})
+        r1 = fake_client.create_dataset("circles", {"seed": 42})
         dataset_id = r1["dataset_id"]
 
         fake_client.batch_update_tags([dataset_id], add_tags=["production", "experiment-7"])
@@ -278,7 +278,7 @@ class TestBatchExport:
     def test_zip_contains_npz_files_with_correct_ids(self, fake_client: FakeDataClient) -> None:
         """The exported ZIP contains one NPZ file per dataset, named by dataset ID."""
         r1 = fake_client.create_dataset("spiral", {"seed": 1})
-        r2 = fake_client.create_dataset("circle", {"seed": 2})
+        r2 = fake_client.create_dataset("circles", {"seed": 2})
         ids = [r1["dataset_id"], r2["dataset_id"]]
 
         raw = fake_client.batch_export(ids)
