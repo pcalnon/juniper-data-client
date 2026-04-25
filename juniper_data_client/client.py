@@ -202,6 +202,21 @@ class JuniperDataClient:
         else:
             raise JuniperDataClientError(f"Request failed ({response.status_code}): {error_detail}")
 
+    @staticmethod
+    def _parse_json(response: requests.Response) -> Any:
+        """Parse a successful response body as JSON.
+
+        ERR-01 (Phase 4C): callers previously invoked ``response.json()`` directly,
+        which raises ``requests.exceptions.JSONDecodeError`` (a ``ValueError`` subclass)
+        on malformed bodies. Surface a typed ``JuniperDataClientError`` instead so the
+        public API never leaks a raw ``json.JSONDecodeError``.
+        """
+        try:
+            return response.json()
+        except ValueError as e:
+            preview = (response.text or "")[:200]
+            raise JuniperDataClientError(f"Malformed JSON response from {response.url}: {e}: {preview!r}") from e
+
     def health_check(self) -> Dict[str, Any]:
         """Check if the JuniperData service is healthy.
 
@@ -212,7 +227,7 @@ class JuniperDataClient:
             JuniperDataConnectionError: If service is unreachable
         """
         response = self._request("GET", ENDPOINT_HEALTH)
-        return response.json()
+        return self._parse_json(response)
 
     def is_ready(self) -> bool:
         """Check if the JuniperData service is ready to accept requests.
@@ -222,7 +237,7 @@ class JuniperDataClient:
         """
         try:
             response = self._request("GET", ENDPOINT_HEALTH_READY)
-            return response.json().get("status") == HEALTH_READY_STATUS
+            return self._parse_json(response).get("status") == HEALTH_READY_STATUS
         except JuniperDataClientError:
             return False
 
@@ -250,7 +265,7 @@ class JuniperDataClient:
             List of generator information dictionaries
         """
         response = self._request("GET", ENDPOINT_GENERATORS)
-        return response.json()
+        return self._parse_json(response)
 
     def get_generator_schema(self, name: str) -> Dict[str, Any]:
         """Get the parameter schema for a generator.
@@ -265,7 +280,7 @@ class JuniperDataClient:
             JuniperDataNotFoundError: If generator not found
         """
         response = self._request("GET", ENDPOINT_GENERATOR_SCHEMA_TEMPLATE.format(name=name))
-        return response.json()
+        return self._parse_json(response)
 
     def create_dataset(
         self,
@@ -330,7 +345,7 @@ class JuniperDataClient:
             payload["ttl_seconds"] = ttl_seconds
 
         response = self._request("POST", ENDPOINT_DATASETS, json=payload)
-        return response.json()
+        return self._parse_json(response)
 
     def list_versions(self, name: str) -> Dict[str, Any]:
         """List all versions of a named dataset.
@@ -342,7 +357,7 @@ class JuniperDataClient:
             Dict with dataset_name, versions list, total count, and latest_version.
         """
         response = self._request("GET", ENDPOINT_DATASETS_VERSIONS, params={"name": name})
-        return response.json()
+        return self._parse_json(response)
 
     def get_latest(self, name: str) -> Dict[str, Any]:
         """Get the latest version of a named dataset.
@@ -357,7 +372,7 @@ class JuniperDataClient:
             JuniperDataNotFoundError: If no versions exist for the given name.
         """
         response = self._request("GET", ENDPOINT_DATASETS_LATEST, params={"name": name})
-        return response.json()
+        return self._parse_json(response)
 
     def list_datasets(self, limit: int = DEFAULT_LIST_LIMIT, offset: int = DEFAULT_LIST_OFFSET) -> List[str]:
         """List dataset IDs.
@@ -370,7 +385,7 @@ class JuniperDataClient:
             List of dataset ID strings
         """
         response = self._request("GET", ENDPOINT_DATASETS, params={"limit": limit, "offset": offset})
-        return response.json()
+        return self._parse_json(response)
 
     def get_dataset_metadata(self, dataset_id: str) -> Dict[str, Any]:
         """Get metadata for a specific dataset.
@@ -385,7 +400,7 @@ class JuniperDataClient:
             JuniperDataNotFoundError: If dataset not found
         """
         response = self._request("GET", ENDPOINT_DATASET_BY_ID_TEMPLATE.format(dataset_id=dataset_id))
-        return response.json()
+        return self._parse_json(response)
 
     def download_artifact_bytes(self, dataset_id: str) -> bytes:
         """Download the raw NPZ artifact bytes for a dataset.
@@ -439,7 +454,7 @@ class JuniperDataClient:
             JuniperDataNotFoundError: If dataset not found
         """
         response = self._request("GET", ENDPOINT_DATASET_PREVIEW_TEMPLATE.format(dataset_id=dataset_id), params={"n": n})
-        return response.json()
+        return self._parse_json(response)
 
     def delete_dataset(self, dataset_id: str) -> bool:
         """Delete a dataset.
@@ -505,7 +520,7 @@ class JuniperDataClient:
             Dictionary with deleted, not_found, and total_deleted.
         """
         response = self._request("POST", ENDPOINT_BATCH_DELETE, json={"dataset_ids": dataset_ids})
-        return response.json()
+        return self._parse_json(response)
 
     def batch_create(self, datasets: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Create multiple datasets in a single request.
@@ -520,7 +535,7 @@ class JuniperDataClient:
             Dictionary with results, total_created, and total_failed.
         """
         response = self._request("POST", ENDPOINT_BATCH_CREATE, json={"datasets": datasets})
-        return response.json()
+        return self._parse_json(response)
 
     def batch_update_tags(
         self,
@@ -544,7 +559,7 @@ class JuniperDataClient:
         if remove_tags:
             payload["remove_tags"] = remove_tags
         response = self._request("PATCH", ENDPOINT_BATCH_TAGS, json=payload)
-        return response.json()
+        return self._parse_json(response)
 
     def batch_export(self, dataset_ids: List[str]) -> bytes:
         """Export multiple datasets as a ZIP archive of NPZ files.
