@@ -254,8 +254,7 @@ def _resolve_generator_alias(name: str) -> str:
     if canonical is None:
         return name
     warnings.warn(
-        f"Generator name {name!r} is deprecated; use {canonical!r} instead. "
-        "The legacy alias will be removed in a future release.",
+        f"Generator name {name!r} is deprecated; use {canonical!r} instead. " "The legacy alias will be removed in a future release.",
         DeprecationWarning,
         stacklevel=3,
     )
@@ -368,11 +367,13 @@ class FakeDataClient:
         description: Optional[str] = None,
         created_by: Optional[str] = None,
         parent_dataset_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        ttl_seconds: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Create a synthetic dataset using an in-memory generator.
 
         Args:
-            generator: Name of the generator (``"spiral"``, ``"xor"``, ``"circle"``, ``"moon"``).
+            generator: Name of the generator (``"spiral"``, ``"xor"``, ``"circles"``, ``"moon"``).
             params: Parameters forwarded to the generator function. Unknown keys are silently
                 ignored to match the real service behavior.
             persist: Accepted for API compatibility; has no effect in the fake.
@@ -381,16 +382,23 @@ class FakeDataClient:
             description: Optional human-readable description of the dataset.
             created_by: Optional identifier for the creator (user or system).
             parent_dataset_id: Optional ID of the parent dataset this was derived from.
+            tags: Optional list of tag strings; stored in ``meta["tags"]`` for
+                parity with ``JuniperDataClient.create_dataset``. XREPO-09.
+            ttl_seconds: Optional positive TTL; stored in ``meta["ttl_seconds"]``.
+                Must be >= 1 when provided — mirrors the server's Pydantic bound.
 
         Returns:
             Dictionary with ``dataset_id``, ``generator``, ``params``, ``meta``, and ``artifact_url``.
 
         Raises:
-            JuniperDataValidationError: If the generator name is not recognized.
+            JuniperDataValidationError: If the generator name is not recognized
+                or ``ttl_seconds`` is not a positive integer.
         """
         generator = _resolve_generator_alias(generator)
         if generator not in _GENERATOR_FUNCTIONS:
             raise JuniperDataValidationError(f"Unknown generator: {generator}")
+        if ttl_seconds is not None and ttl_seconds < 1:
+            raise JuniperDataValidationError(f"ttl_seconds must be >= 1 (got {ttl_seconds})")
 
         gen_func = _GENERATOR_FUNCTIONS[generator]
 
@@ -432,6 +440,13 @@ class FakeDataClient:
             meta["created_by"] = created_by
         if parent_dataset_id is not None:
             meta["parent_dataset_id"] = parent_dataset_id
+        # XREPO-09 (2026-04-24): persist tags/ttl_seconds so tests that
+        # roundtrip through ``get_dataset_metadata`` see the same shape
+        # the real server emits.
+        if tags is not None:
+            meta["tags"] = list(tags)
+        if ttl_seconds is not None:
+            meta["ttl_seconds"] = ttl_seconds
 
         metadata = {
             "dataset_id": dataset_id,

@@ -276,6 +276,8 @@ class JuniperDataClient:
         description: Optional[str] = None,
         created_by: Optional[str] = None,
         parent_dataset_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        ttl_seconds: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Create a new dataset via the JuniperData API.
 
@@ -291,6 +293,13 @@ class JuniperDataClient:
             description: Optional human-readable description of the dataset.
             created_by: Optional identifier for the creator (user or system).
             parent_dataset_id: Optional ID of the parent dataset this was derived from.
+            tags: Optional list of tag strings to attach to the dataset. Forwarded
+                to the server's ``CreateDatasetRequest.tags`` field. Server-side
+                tags are searchable via ``list_datasets`` filters.
+            ttl_seconds: Optional time-to-live in seconds (must be positive when
+                provided). After the TTL elapses the server is free to expire the
+                dataset via the cleanup-expired route. Mirrors
+                ``CreateDatasetRequest.ttl_seconds``.
 
         Returns:
             Parsed JSON response containing dataset_id, generator, meta, and artifact_url
@@ -312,6 +321,13 @@ class JuniperDataClient:
             payload["created_by"] = created_by
         if parent_dataset_id is not None:
             payload["parent_dataset_id"] = parent_dataset_id
+        # XREPO-09 (2026-04-24): previously dropped by the client; the
+        # server's CreateDatasetRequest has accepted these fields since
+        # juniper-data v0.6.0.
+        if tags is not None:
+            payload["tags"] = list(tags)
+        if ttl_seconds is not None:
+            payload["ttl_seconds"] = ttl_seconds
 
         response = self._request("POST", ENDPOINT_DATASETS, json=payload)
         return response.json()
