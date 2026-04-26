@@ -23,7 +23,6 @@ import pytest
 from juniper_data_client import constants
 from juniper_data_client.testing import FakeDataClient
 
-
 # Source of truth for the server-side generator registry. Must be kept
 # aligned with ``juniper_data/api/routes/generators.py::GENERATOR_REGISTRY``.
 EXPECTED_SERVER_GENERATORS: frozenset[str] = frozenset(
@@ -67,11 +66,7 @@ class TestGeneratorConstantParity:
 
     def test_every_client_constant_maps_to_server(self) -> None:
         """No client constant should reference a non-existent generator."""
-        unexpected = {
-            name: value
-            for name, value in CLIENT_GENERATOR_CONSTANTS.items()
-            if value not in EXPECTED_SERVER_GENERATORS
-        }
+        unexpected = {name: value for name, value in CLIENT_GENERATOR_CONSTANTS.items() if value not in EXPECTED_SERVER_GENERATORS}
         assert not unexpected, f"Client constants point at unknown generators: {unexpected}"
 
     def test_every_server_generator_has_client_constant(self) -> None:
@@ -110,11 +105,7 @@ class TestFakeClientLegacyAlias:
                 result = client.create_dataset("circle", {"n_points": 30, "seed": 1})
             # The fake returns the canonical name, not the legacy alias.
             assert result["generator"] == constants.GENERATOR_CIRCLE == "circles"
-            assert any(
-                issubclass(w.category, DeprecationWarning)
-                and "circle" in str(w.message)
-                for w in recorded
-            ), "Legacy generator name should emit a DeprecationWarning"
+            assert any(issubclass(w.category, DeprecationWarning) and "circle" in str(w.message) for w in recorded), "Legacy generator name should emit a DeprecationWarning"
 
     def test_create_dataset_with_new_circles_is_clean(self) -> None:
         with FakeDataClient() as client:
@@ -122,9 +113,7 @@ class TestFakeClientLegacyAlias:
                 warnings.simplefilter("always")
                 result = client.create_dataset("circles", {"n_points": 30, "seed": 1})
             assert result["generator"] == "circles"
-            assert not any(
-                issubclass(w.category, DeprecationWarning) for w in recorded
-            ), "Canonical generator name must not emit DeprecationWarning"
+            assert not any(issubclass(w.category, DeprecationWarning) for w in recorded), "Canonical generator name must not emit DeprecationWarning"
 
     def test_get_generator_schema_accepts_legacy_circle(self) -> None:
         with FakeDataClient() as client:
