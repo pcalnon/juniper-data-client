@@ -12,7 +12,6 @@ import responses
 
 from juniper_data_client import JuniperDataClient, JuniperDataClientError
 
-
 BASE_URL = "http://localhost:8100"
 API_URL = f"{BASE_URL}/v1"
 
