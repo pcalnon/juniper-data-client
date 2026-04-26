@@ -437,8 +437,15 @@ class JuniperDataClient:
             JuniperDataNotFoundError: If dataset not found
         """
         content = self.download_artifact_bytes(dataset_id)
-        npz_file = np.load(io.BytesIO(content))
-        return {key: npz_file[key] for key in npz_file.files}
+        # CC-07 (Phase 4E): np.load returns an NpzFile that holds an open
+        # ZipFile backed by the BytesIO. Without context-managing it the
+        # underlying file handle leaks until garbage collection runs, which
+        # in long-running clients accumulates ResourceWarning entries and
+        # can exhaust file-descriptor limits. Materialising the arrays
+        # inside the with-block lets us hand back plain numpy arrays while
+        # the NpzFile is closed deterministically.
+        with np.load(io.BytesIO(content)) as npz_file:
+            return {key: np.asarray(npz_file[key]) for key in npz_file.files}
 
     def get_preview(self, dataset_id: str, n: int = DEFAULT_PREVIEW_N) -> Dict[str, Any]:
         """Get a preview of dataset samples as JSON.
