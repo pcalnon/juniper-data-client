@@ -410,7 +410,9 @@ jobs:
           echo "╚════════════════════════════════════════════════════════════╝"
           pip install -e ".[test]"
           pip freeze | grep -ivE "^juniper[-_]data[-_]client" > reports/security/requirements.txt
-          pip-audit -r reports/security/requirements.txt --strict --desc on \
+          # --ignore-vuln CVE-2026-3219: pip 26.0.1 on the runner image
+          # has no fix available as of 2026-04-29.
+          pip-audit -r reports/security/requirements.txt --strict --desc on --ignore-vuln CVE-2026-3219 \
             || (echo "::error::Critical/High vulnerabilities found in dependencies" && exit 1)
 
       - name: Upload Security Reports
