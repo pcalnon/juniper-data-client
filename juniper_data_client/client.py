@@ -5,9 +5,10 @@ for JuniperCascor and juniper-canopy applications.
 """
 
 import io
+import logging
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse
 
 import numpy as np
@@ -61,6 +62,43 @@ from juniper_data_client.constants import (
 )
 from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
+logger = logging.getLogger("juniper_data_client.client")
+
+
+# METRICS-MON R4.3 / seed-13: type alias for the optional instrumentation
+# hook. Consumers (canopy, cascor) pass a callable matching this shape;
+# default in :class:`JuniperDataClient` is no-op so standalone users
+# (notebooks, ad-hoc scripts) pay nothing for an unused hook.
+#
+# Fields:
+#   method     — HTTP method ("GET", "POST", ...).
+#   url        — absolute URL the request hit (post-base_url-join).
+#   status     — final HTTP status code, or None if no response was
+#                received (transport failure / timeout).
+#   duration_ms— wall-clock from issue to outcome, milliseconds.
+#   error      — exception instance on failure paths, or None on success.
+#                ``error is None`` is the canonical success signal —
+#                ``status`` may be set even on the error path (for
+#                JuniperDataValidationError, JuniperDataNotFoundError,
+#                etc.) so it's not a reliable success indicator.
+RequestHook = Callable[[str, str, Optional[int], float, Optional[BaseException]], None]
+
+
+def _noop_request_hook(
+    method: str,
+    url: str,
+    status: Optional[int],
+    duration_ms: float,
+    error: Optional[BaseException],
+) -> None:
+    """Default :data:`RequestHook` — does nothing.
+
+    Used when the consumer doesn't pass an ``on_request`` kwarg. The
+    no-op exists as a named symbol so test code (and IDE introspection)
+    can confirm the default is genuinely a callable that matches the
+    :data:`RequestHook` signature, not ``None``.
+    """
+
 
 class JuniperDataClient:
     """Client for interacting with the JuniperData REST API.
@@ -82,6 +120,7 @@ class JuniperDataClient:
         retries: int = DEFAULT_RETRIES,
         backoff_factor: float = DEFAULT_BACKOFF_FACTOR,
         api_key: Optional[str] = None,
+        on_request: Optional[RequestHook] = None,
     ):
         """Initialize the JuniperData client.
 
@@ -92,12 +131,25 @@ class JuniperDataClient:
             backoff_factor: Backoff factor for retry delays (default: 0.5)
             api_key: API key for authentication. If not provided, reads from
                 JUNIPER_DATA_API_KEY environment variable.
+            on_request: METRICS-MON R4.3 / seed-13 — optional
+                instrumentation hook invoked once per HTTP call with
+                ``(method, url, status, duration_ms, error)``. Default
+                is a no-op so standalone use pays nothing. Consumers
+                that need Prometheus / OpenTelemetry / structured-log
+                emission supply a closure (see canopy's adoption for
+                the canonical pattern). Hook exceptions are caught and
+                logged at WARNING — instrumentation must never crash a
+                production HTTP path.
         """
         self.base_url = self._normalize_url(base_url)
         self.timeout = timeout
         self.retries = retries
         self.backoff_factor = backoff_factor
         self.session = self._create_session()
+        # METRICS-MON R4.3: store hook (defaulting to no-op rather than
+        # ``None`` so call sites don't need ``if self._on_request: ...``
+        # guards — the no-op call is a single attribute load + return).
+        self._on_request: RequestHook = on_request or _noop_request_hook
 
         resolved_api_key = api_key or os.environ.get(API_KEY_ENV_VAR)
         if resolved_api_key:
@@ -152,7 +204,7 @@ class JuniperDataClient:
 
         return session
 
-    def _request(self, method: str, endpoint: str, **kwargs: Any) -> requests.Response:
+    def _request(self, method: str, endpoint: str, **kwargs: Any) -> requests.Response:  # noqa: C901
         """Make an HTTP request with error handling.
 
         Args:
@@ -199,34 +251,61 @@ class JuniperDataClient:
                 # Both are expected; silently fall through.
                 pass
 
+        # METRICS-MON R4.3: instrumentation hook fires once per call,
+        # in the ``finally`` block so every outcome path is observed
+        # (success, transport error, HTTP non-2xx, all five typed
+        # exception branches). ``status`` carries the HTTP code when
+        # available; ``error`` carries the raised exception (or None on
+        # success). Hook exceptions are swallowed so instrumentation
+        # never crashes a production HTTP call.
+        start = time.monotonic()
+        response: Optional[requests.Response] = None
+        outgoing_error: Optional[BaseException] = None
         try:
-            response = self.session.request(method, url, **kwargs)
-        except requests.exceptions.ConnectionError as e:
-            raise JuniperDataConnectionError(f"Failed to connect to JuniperData at {self.base_url}: {e}") from e
-        except requests.exceptions.Timeout as e:
-            raise JuniperDataTimeoutError(f"Request to {url} timed out after {self.timeout}s: {e}") from e
-        except requests.exceptions.RequestException as e:
-            raise JuniperDataClientError(f"Request failed: {e}") from e
+            try:
+                response = self.session.request(method, url, **kwargs)
+            except requests.exceptions.ConnectionError as e:
+                outgoing_error = JuniperDataConnectionError(f"Failed to connect to JuniperData at {self.base_url}: {e}")
+                raise outgoing_error from e
+            except requests.exceptions.Timeout as e:
+                outgoing_error = JuniperDataTimeoutError(f"Request to {url} timed out after {self.timeout}s: {e}")
+                raise outgoing_error from e
+            except requests.exceptions.RequestException as e:
+                outgoing_error = JuniperDataClientError(f"Request failed: {e}")
+                raise outgoing_error from e
 
-        if response.ok:
-            return response
+            if response.ok:
+                return response
 
-        error_detail = response.text
-        try:
-            error_json = response.json()
-            if "detail" in error_json:
-                error_detail = error_json["detail"]
-        except (ValueError, KeyError):
-            # If the response body is not valid JSON or lacks a 'detail' field,
-            # fall back to using the raw response text as the error detail.
             error_detail = response.text
+            try:
+                error_json = response.json()
+                if "detail" in error_json:
+                    error_detail = error_json["detail"]
+            except (ValueError, KeyError):
+                # If the response body is not valid JSON or lacks a 'detail' field,
+                # fall back to using the raw response text as the error detail.
+                error_detail = response.text
 
-        if response.status_code == HTTP_404_NOT_FOUND:
-            raise JuniperDataNotFoundError(f"Resource not found: {error_detail}")
-        elif response.status_code in (HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY):
-            raise JuniperDataValidationError(f"Validation error: {error_detail}")
-        else:
-            raise JuniperDataClientError(f"Request failed ({response.status_code}): {error_detail}")
+            if response.status_code == HTTP_404_NOT_FOUND:
+                outgoing_error = JuniperDataNotFoundError(f"Resource not found: {error_detail}")
+                raise outgoing_error
+            elif response.status_code in (HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY):
+                outgoing_error = JuniperDataValidationError(f"Validation error: {error_detail}")
+                raise outgoing_error
+            else:
+                outgoing_error = JuniperDataClientError(f"Request failed ({response.status_code}): {error_detail}")
+                raise outgoing_error
+        finally:
+            duration_ms = (time.monotonic() - start) * 1000.0
+            status = response.status_code if response is not None else None
+            try:
+                self._on_request(method, url, status, duration_ms, outgoing_error)
+            except Exception:  # noqa: BLE001 — instrumentation must not crash production paths
+                logger.warning(
+                    "on_request hook raised; suppressed to keep request path resilient",
+                    exc_info=True,
+                )
 
     @staticmethod
     def _parse_json(response: requests.Response) -> Any:
