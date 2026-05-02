@@ -173,6 +173,32 @@ class JuniperDataClient:
         url = f"{self.base_url}{endpoint}"
         kwargs.setdefault("timeout", self.timeout)
 
+        # METRICS-MON R4.6: opt-in propagation of the caller's request-id
+        # via the shared ``juniper-observability`` ContextVar. When the
+        # calling thread has a non-empty ``request_id_var``, copy it into
+        # an outbound ``X-Request-ID`` header so juniper-data can correlate
+        # the inbound request back to the caller's chain (canopy/cascor →
+        # data-client → data). The check is best-effort: if
+        # ``juniper-observability`` is not installed (e.g. data-client
+        # used standalone in a notebook), the propagation silently no-ops
+        # — data-side ``RequestIdMiddleware`` will generate a fresh id.
+        # Caller-supplied headers always win — if ``kwargs["headers"]``
+        # already contains ``X-Request-ID``, do not overwrite it.
+        headers = dict(kwargs.get("headers") or {})
+        if "X-Request-ID" not in headers:
+            try:
+                from juniper_observability import request_id_var  # noqa: PLC0415
+
+                rid = request_id_var.get()
+                if rid:
+                    headers["X-Request-ID"] = rid
+                    kwargs["headers"] = headers
+            except (ImportError, LookupError):
+                # ImportError: juniper-observability not installed (standalone use).
+                # LookupError: request_id_var ContextVar has no value in this thread.
+                # Both are expected; silently fall through.
+                pass
+
         try:
             response = self.session.request(method, url, **kwargs)
         except requests.exceptions.ConnectionError as e:

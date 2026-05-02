@@ -37,6 +37,19 @@ test = [
     "pytest-cov>=4.0.0",
     "pytest-timeout>=2.2.0",
     "responses>=0.23.0",
+    # METRICS-MON R4.6: tests for X-Request-ID propagation need the
+    # ContextVar source. Listed under [test] (not as a hard dep) so
+    # standalone notebook users don't pay the install cost.
+    "juniper-observability>=0.1.1",
+]
+observability = [
+    # METRICS-MON R4.6: opt-in to outbound X-Request-ID propagation
+    # via the shared ``juniper_observability.request_id_var`` ContextVar.
+    # Consumers that already depend on ``juniper-observability`` (canopy,
+    # cascor) get the propagation transparently and don't need this
+    # extra; standalone users opt in via
+    # ``pip install juniper-data-client[observability]``.
+    "juniper-observability>=0.1.1",
 ]
 dev = [
     "juniper-data-client[test]",
