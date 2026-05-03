@@ -4,7 +4,7 @@ This package provides a simple, robust client for interacting with the JuniperDa
 dataset generation service, used by both JuniperCascor and juniper-canopy.
 """
 
-from juniper_data_client.client import JuniperDataClient
+from juniper_data_client.client import JuniperDataClient, RequestHook
 from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConfigurationError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
 __version__ = "0.4.0"
@@ -17,5 +17,8 @@ __all__ = [
     "JuniperDataNotFoundError",
     "JuniperDataTimeoutError",
     "JuniperDataValidationError",
+    # METRICS-MON R4.3 / seed-13: instrumentation hook type alias
+    # exported so consumers can type their hook closures.
+    "RequestHook",
     "__version__",
 ]
