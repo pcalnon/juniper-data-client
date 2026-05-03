@@ -7,8 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-05-02
+
+**Summary**: METRICS-MON R4.3 + R4.6 ship the optional `on_request` instrumentation hook and outbound `X-Request-ID` propagation. Also rolls in the previously-accumulated `[Unreleased]` work (constants module, DC-01/03 / XREPO-01/01c/09/11, retry-policy change, GENERATOR_CIRCLE alias).
+
 ### Added
 
+- **METRICS-MON R4.3 / seed-13**: optional `on_request(method, url, status, duration_ms, error)` instrumentation hook on `JuniperDataClient.__init__`. Default is a no-op so standalone use pays nothing; consumers (canopy, cascor) supply a closure that emits to their preferred surface (Prometheus, OpenTelemetry, structured logs). Hook fires once per HTTP call on every outcome — success, transport error, 404, 422, 500, timeout. Hook exceptions are caught and logged at WARNING so instrumentation never crashes a production HTTP path. New `RequestHook` type alias exported from the package's public surface so consumers can type their hook closures (mypy in CI catches drift). 11 unit tests pin all 6 outcome paths plus resilience.
+- **METRICS-MON R4.6 / R3.6 sweep follow-up**: outbound `X-Request-ID` propagation in `_request()`. Reads `juniper_observability.request_id_var` at call time; when the calling thread has a non-empty value, copies it into the outbound HTTP header so juniper-data can correlate the inbound request back to the caller's chain (canopy/cascor → data-client → data). Best-effort: `ImportError` (lib not installed) and `LookupError` (ContextVar unset) silently no-op. Caller-supplied `X-Request-ID` headers always win. New `[observability]` extra (`pip install juniper-data-client[observability]`) for standalone users; canopy/cascor get propagation transparently via their existing `juniper-observability` deps. 4 unit tests pin set / unset / caller-wins / standalone paths.
 - New `juniper_data_client/constants.py` module centralizing every previously inline literal: `API_KEY_*` and `API_VERSION_*` wire-protocol identifiers, the full set of `ENDPOINT_*` paths (including f-string templates for parameterized routes), `DEFAULT_*` constructor defaults, `RETRY_*` tuning, and per-generator parameter defaults (spiral, xor, circles, gaussian, checkerboard) used by `testing/generators.py`.
 - **DC-03 / XREPO-01c**: constants for the five server-side generators the client previously lacked -- `GENERATOR_GAUSSIAN`, `GENERATOR_CHECKERBOARD`, `GENERATOR_CSV_IMPORT`, `GENERATOR_MNIST`, `GENERATOR_ARC_AGI` -- with matching `GENERATOR_DESCRIPTION_*` entries. Downstream code should now import these instead of hardcoding string literals.
 - `tests/test_generator_parity.py`: parity suite that prevents future drift between client generator constants and the server `GENERATOR_REGISTRY`, and exercises the legacy `"circle"` -> `"circles"` alias through the fake client.
