@@ -392,21 +392,36 @@ jobs:
       - name: Install security tools
         run: |
           python -m pip install --upgrade pip
-          pip install bandit pip-audit
+          # ``[sarif]`` extra installs the optional SARIF formatter (jschema-to-python).
+          pip install "bandit[sarif]" pip-audit
 
       - name: Create reports directory
         run: mkdir -p reports/security
 
-      - name: Run Bandit (SAST) -> SARIF
+      - name: Run Bandit (SAST)
+        # P-20 (cross-repo CI audit): mirror cascor / data's two-step
+        # bandit pattern. Step 1 emits SARIF with --exit-zero so the
+        # report always uploads; step 2 is the actual gate that fails
+        # the job on medium-severity findings. Previously this step was
+        # a single ``bandit … || true`` with no follow-up blocking
+        # invocation, so any genuine finding was silently tolerated.
         run: |
           echo "╔════════════════════════════════════════════════════════════╗"
           echo "║       juniper-data-client - Bandit Security Scan           ║"
           echo "╚════════════════════════════════════════════════════════════╝"
-          bandit -r juniper_data_client -f sarif -o reports/security/bandit.sarif || true
+          # SARIF (always succeeds for upload).
+          bandit -r juniper_data_client -f sarif -o reports/security/bandit.sarif --exit-zero
+          # Blocking — fails on medium or higher.
+          bandit -r juniper_data_client --confidence-level medium --severity-level medium
 
       - name: Upload Bandit SARIF to GitHub Security
+        # ``hashFiles`` returns empty when the file is absent; only
+        # attempt the upload when SARIF actually exists. Combined with
+        # ``continue-on-error`` this keeps the job green even if a
+        # security-tools regression prevents bandit from emitting the
+        # file (mirrors the canonical pattern from juniper-data PR #67).
+        if: always() && hashFiles('reports/security/bandit.sarif') != ''
         uses: github/codeql-action/upload-sarif@95e58e9a2cdfd71adc6e0353d5c52f41a045d225  # v4.35.2
-        if: always()
         with:
           sarif_file: reports/security/bandit.sarif
         continue-on-error: true
