@@ -86,7 +86,7 @@ isort==8.0.1
 jschema-to-python==1.2.3
 jsonpickle==4.1.1
 juniper-data==0.6.0
-juniper-data-client==0.4.0
+juniper-data-client==0.4.1
 kiwisolver==1.5.0
 librt==0.9.0
 license-expression==30.4.4
@@ -136,7 +136,7 @@ responses==0.26.0
 rich==15.0.0
 ruff==0.15.12
 sarif-om==1.0.4
-sentry-sdk==2.58.0
+sentry-sdk==2.59.0
 setuptools==82.0.1
 six==1.17.0
 sortedcontainers==2.4.0
@@ -150,7 +150,7 @@ typing-inspection==0.4.2
 urllib3==2.6.3
 uvicorn==0.46.0
 uvloop==0.22.1
-virtualenv==21.2.4
+virtualenv==21.3.0
 watchfiles==1.1.1
 websockets==16.0
 zipp==3.23.1
