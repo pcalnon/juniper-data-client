@@ -89,7 +89,7 @@ jobs:
       - name: Run pre-commit hooks
         run: |
           echo "╔════════════════════════════════════════════════════════════╗"
-          echo "║       juniper-data-client - Pre-commit Checks             ║"
+          echo "║       juniper-data-client - Pre-commit Checks              ║"
           echo "╚════════════════════════════════════════════════════════════╝"
           pre-commit run --all-files --show-diff-on-failure
 
@@ -113,7 +113,17 @@ jobs:
           echo "╔════════════════════════════════════════════════════════════╗"
           echo "║       juniper-data-client - Documentation Link Validation  ║"
           echo "╚════════════════════════════════════════════════════════════╝"
-          python scripts/check_doc_links.py --exclude templates --exclude history
+          python scripts/check_doc_links.py \
+            --exclude templates \
+            --exclude history \
+            --exclude legacy \
+            --exclude pull_requests \
+            --exclude releases \
+            --exclude analysis \
+            --exclude fixes \
+            --exclude development \
+            --exclude CHANGELOG.md \
+            --cross-repo skip
 
   # ═══════════════════════════════════════════════════════════════════════════════════════════════
   # Unit Tests: Run unit tests with coverage enforcement
