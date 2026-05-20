@@ -808,10 +808,25 @@ class FakeDataClient:
     # ------------------------------------------------------------------
 
     def close(self) -> None:
-        """Close the fake client (clears internal state)."""
+        """Close the fake client by marking it as closed.
+
+        Mirrors the real ``JuniperDataClient.close()`` contract: releases
+        resources but does NOT destroy data state. Tests that need a clean
+        slate should call :meth:`reset` instead.
+        """
+        self._closed = True
+
+    def reset(self) -> None:
+        """Reset all internal state.
+
+        Clears datasets, version counters, and the closed flag so the
+        instance is reusable. Provided as an explicit test helper — the
+        real client has no equivalent; this is a fake-only convenience
+        for setups that previously relied on ``close()`` wiping data.
+        """
         self._datasets.clear()
         self._version_counters.clear()
-        self._closed = True
+        self._closed = False
 
     def __enter__(self) -> "FakeDataClient":
         """Context manager entry."""

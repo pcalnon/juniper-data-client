@@ -499,8 +499,12 @@ class TestContextManager:
             arrays = client.download_artifact_npz(result["dataset_id"])
             assert "X_train" in arrays
 
-    def test_close_clears_state(self) -> None:
-        """close() clears internal datasets and sets the closed flag."""
+    def test_close_sets_closed_flag_preserves_data(self) -> None:
+        """close() sets the closed flag but preserves dataset state.
+
+        Mirrors the real ``JuniperDataClient.close()`` contract — releases
+        resources without destroying data. See CLN-JD-02.
+        """
         client = FakeDataClient()
         client.create_dataset("spiral", {"seed": 42})
         assert len(client.list_datasets()) == 1
@@ -508,7 +512,22 @@ class TestContextManager:
         client.close()
 
         assert client._closed is True
-        assert len(client.list_datasets()) == 0, "Datasets should be cleared after close()"
+        assert len(client.list_datasets()) == 1, "Datasets must persist after close() — mirrors real client"
+
+    def test_reset_clears_state_and_unmarks_closed(self) -> None:
+        """reset() clears datasets, version counters, and clears the closed flag."""
+        client = FakeDataClient()
+        client.create_dataset("spiral", {"seed": 42}, name="experiment-a")
+        assert len(client.list_datasets()) == 1
+
+        client.close()
+        assert client._closed is True
+
+        client.reset()
+
+        assert client._closed is False, "reset() should clear the closed flag"
+        assert len(client.list_datasets()) == 0, "reset() should clear datasets"
+        assert client._version_counters == {}, "reset() should clear version counters"
 
 
 # ======================================================================
