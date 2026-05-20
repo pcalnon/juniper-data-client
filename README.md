@@ -1,226 +1,140 @@
-# juniper-data-client
+<div align="right" width="150px" height="150px" align="right" valign="top"> <img src="images/Juniper_Logo_150px.png" alt="Juniper" align="right" valign="top" width="150px" /></div>
+<br /> <br /> <br /> <br />
 
-Python client library for the JuniperData REST API.
+# Juniper: Dynamic Neural Network Research Platform
 
-## Overview
+Juniper is an AI/ML research platform for investigating dynamic neural network architectures and novel learning paradigms.  The project emphasizes ground-up implementations from primary literature, enabling a more transparent exploration of fundamental algorithms.
 
-`juniper-data-client` provides a simple, robust client for interacting with the JuniperData dataset generation service. It is the official client library used by both JuniperCascor (neural network backend) and juniper-canopy (web dashboard).
+## Juniper Data Client
 
-## Ecosystem Compatibility
+`juniper-data-client` is the **Python HTTP client library** for the `juniper-data` dataset-generation service. The package exposes a single `JuniperDataClient` class whose methods correspond to the REST surface of `juniper-data`: generator schemas, dataset creation, tag-based filtering, batch operations, the named-version registry, and download of the resulting NPZ artifacts as ready-to-train `numpy` arrays. It is the canonical dataset-fetch interface used by both `juniper-cascor` (for training) and `juniper-canopy` (for visualisation), and it serializes the platform's shared `X_train` / `y_train` / `X_test` / `y_test` / `X_full` / `y_full` NPZ schema (all `float32`).
 
-This package is part of the [Juniper](https://github.com/pcalnon/juniper-ml) ecosystem.
-Compatible with:
+## Distribution
 
-| juniper-data | juniper-cascor | juniper-canopy |
-|---|---|---|
-| 0.4.x | 0.3.x | 0.2.x |
-
-## Installation
+`juniper-data-client` is published on PyPI as **[`juniper-data-client`](https://pypi.org/project/juniper-data-client/)**.
+The package is also surfaced through the platform meta-distribution
+**[`juniper-ml`](https://pypi.org/project/juniper-ml/)**, which installs
+the full client stack via `pip install juniper-ml[all]`.
 
 ```bash
 pip install juniper-data-client
 ```
 
-Or install from source:
+## Ecosystem Compatibility
 
-```bash
-cd juniper-data-client
-pip install -e .
+This client library is part of the [Juniper](https://github.com/pcalnon/juniper-ml) ecosystem.
+Verified compatible versions:
+
+| juniper-data | juniper-cascor | juniper-canopy | data-client | cascor-client | cascor-worker |
+|--------------|----------------|----------------|-------------|---------------|---------------|
+| 0.6.x        | 0.4.x          | 0.4.x          | >=0.4.1     | >=0.4.0       | >=0.3.0       |
+
+For full-stack Docker deployment and integration tests, see [`juniper-deploy`](https://github.com/pcalnon/juniper-deploy).
+
+## Architecture
+
+`juniper-data-client` is a thin synchronous HTTP client. It does not embed any dataset-generation logic of its own: every call resolves to an HTTP request against a `juniper-data` instance, and every NPZ artifact returned has been produced server-side.
+
+```text
+┌────────────────────────┐                     ┌──────────────────┐
+│     Caller (e.g.       │  HTTP (requests +   │  juniper-data    │
+│ juniper-cascor /       │  urllib3 Retry)     │  REST service    │
+│ juniper-canopy /       │ ──────────────────► │  Port 8100       │
+│ research notebook)     │ ◄────────────────── │  /v1/...         │
+└──────────┬─────────────┘   JSON + NPZ        └──────────────────┘
+           │ uses
+           ▼
+┌────────────────────────┐
+│  juniper-data-client   │
+│  JuniperDataClient     │
+│  (this package)        │
+└────────────────────────┘
 ```
 
-## Quick Start
+The client retries idempotent verbs (GET) on transient failures via `urllib3.Retry` with exponential backoff; mutating verbs (POST, PATCH, DELETE) are **not** auto-retried, to avoid duplicate-side-effect bugs against the dataset registry. Optional `X-Request-ID` propagation and a `RequestHook` instrumentation surface are available for callers that integrate with the platform's observability stack.
+
+## Related Services
+
+| Service | Relationship | Notes |
+|---------|-------------|-------|
+| [juniper-data](https://github.com/pcalnon/juniper-data) | The HTTP service this client targets | Set `base_url` to the service's URL (default `http://localhost:8100`) |
+| [juniper-cascor](https://github.com/pcalnon/juniper-cascor) | Primary consumer; uses this client to fetch training datasets | Reads `JUNIPER_DATA_URL` |
+| [juniper-canopy](https://github.com/pcalnon/juniper-canopy) | Secondary consumer; uses this client to fetch visualisation data | Reads `JUNIPER_DATA_URL` |
+
+## Active Research Components
+
+`juniper-data-client` does not host research components of its own; it is the surface through which other components of the Juniper platform reach the research components hosted by `juniper-data`. Through this client, callers access the **ARC-AGI dataset families** (ARC-AGI-1 and ARC-AGI-2), the **named-version dataset registry** (`list_versions`, `get_latest`), the **batch dataset operations** (`batch_create`, `batch_delete`, `batch_update_tags`, `batch_export`), and the **NPZ artifact contract** that the rest of the platform consumes. Treating these as research artifacts is appropriate: each is a stable interface around which comparative experiments are composed.
+
+## Quick Start Guide
+
+### Prerequisites
+
+- Python ≥ 3.12
+- A running `juniper-data` instance reachable at the URL passed as `base_url` (typically `http://localhost:8100`)
+
+### Installation
+
+```bash
+pip install juniper-data-client
+```
+
+Optional extras: `[observability]` enables `X-Request-ID` propagation through `juniper-observability`; `[test]` installs the testing dependencies; `[dev]` adds linting and type-checking tools.
+
+### Verification
 
 ```python
 from juniper_data_client import JuniperDataClient
 
-# Create client (default: localhost:8100)
-client = JuniperDataClient("http://localhost:8100")
-
-# Check service health
-health = client.health_check()
-print(f"Service status: {health['status']}")
-
-# Create a spiral dataset
-result = client.create_spiral_dataset(
-    n_spirals=2,
-    n_points_per_spiral=100,
-    noise=0.1,
-    seed=42,
-)
-dataset_id = result["dataset_id"]
-print(f"Created dataset: {dataset_id}")
-
-# Download as numpy arrays
-arrays = client.download_artifact_npz(dataset_id)
-X_train = arrays["X_train"]  # (160, 2) float32
-y_train = arrays["y_train"]  # (160, 2) float32 one-hot
-X_test = arrays["X_test"]    # (40, 2) float32
-y_test = arrays["y_test"]    # (40, 2) float32 one-hot
-
-print(f"Training samples: {len(X_train)}")
-print(f"Test samples: {len(X_test)}")
-```
-
-## Features
-
-- **Simple API**: Easy-to-use methods for all JuniperData endpoints
-- **Automatic Retries**: Built-in retry logic for transient failures (429, 5xx)
-- **Connection Pooling**: Efficient HTTP connection reuse
-- **Type Hints**: Full type annotations for IDE support
-- **Context Manager**: Resource cleanup with `with` statement
-- **Custom Exceptions**: Granular error handling
-
-## Usage Examples
-
-### Context Manager
-
-```python
 with JuniperDataClient("http://localhost:8100") as client:
-    result = client.create_spiral_dataset(seed=42)
+    health = client.health_check()
+    print(f"Service status: {health['status']}")
+
+    result = client.create_spiral_dataset(
+        n_spirals=2,
+        n_points_per_spiral=100,
+        noise=0.1,
+        seed=42,
+    )
     arrays = client.download_artifact_npz(result["dataset_id"])
-# Session automatically closed
+
+    print(f"Training samples: {len(arrays['X_train'])}")
+    print(f"Test samples:     {len(arrays['X_test'])}")
 ```
 
-### Wait for Service
-
-```python
-client = JuniperDataClient("http://localhost:8100")
-
-# Wait up to 30 seconds for service to be ready
-if client.wait_for_ready(timeout=30):
-    result = client.create_spiral_dataset(seed=42)
-else:
-    print("Service not available")
-```
-
-### Custom Parameters
-
-```python
-# Using the general create_dataset method
-result = client.create_dataset(
-    generator="spiral",
-    params={
-        "n_spirals": 3,
-        "n_points_per_spiral": 200,
-        "noise": 0.2,
-        "seed": 12345,
-        "algorithm": "legacy_cascor",
-        "radius": 10.0,
-    }
-)
-```
-
-### Error Handling
-
-```python
-from juniper_data_client import (
-    JuniperDataClient,
-    JuniperDataConnectionError,
-    JuniperDataNotFoundError,
-    JuniperDataValidationError,
-)
-
-client = JuniperDataClient()
-
-try:
-    result = client.create_dataset("spiral", {"n_spirals": -1})
-except JuniperDataValidationError as e:
-    print(f"Invalid parameters: {e}")
-except JuniperDataConnectionError as e:
-    print(f"Service unreachable: {e}")
-```
-
-### PyTorch Integration
+For PyTorch consumers, the returned arrays convert directly with `torch.from_numpy`:
 
 ```python
 import torch
-from juniper_data_client import JuniperDataClient
-
-client = JuniperDataClient()
-result = client.create_spiral_dataset(seed=42)
-arrays = client.download_artifact_npz(result["dataset_id"])
-
-# Convert to PyTorch tensors
 X_train = torch.from_numpy(arrays["X_train"])  # torch.float32
 y_train = torch.from_numpy(arrays["y_train"])  # torch.float32
 ```
 
-## API Reference
+### Next Steps
 
-### JuniperDataClient
+- [`docs/QUICK_START.md`](docs/QUICK_START.md) — complete installation and verification guide
+- [`docs/REFERENCE.md`](docs/REFERENCE.md) — full API reference, configuration, and error model
+- [`docs/DEVELOPER_CHEATSHEET.md`](docs/DEVELOPER_CHEATSHEET.md) — quick-reference card for development tasks
+- [`juniper-data`](https://github.com/pcalnon/juniper-data) — the upstream dataset service
+- [`juniper-ml`](https://pypi.org/project/juniper-ml/) — platform meta-package on PyPI
 
-| Method                              | Description                            |
-| ----------------------------------- | -------------------------------------- |
-| `health_check()`                    | Get service health status              |
-| `is_ready()`                        | Check if service is ready (boolean)    |
-| `wait_for_ready(timeout)`           | Wait for service to become ready       |
-| `list_generators()`                 | List available generators              |
-| `get_generator_schema(name)`        | Get parameter schema for generator     |
-| `create_dataset(generator, params)` | Create dataset with generator          |
-| `create_spiral_dataset(**kwargs)`   | Convenience method for spiral datasets |
-| `list_datasets(limit, offset)`      | List dataset IDs                       |
-| `get_dataset_metadata(id)`          | Get dataset metadata                   |
-| `download_artifact_npz(id)`         | Download NPZ as dict of arrays         |
-| `download_artifact_bytes(id)`       | Download raw NPZ bytes                 |
-| `get_preview(id, n)`                | Get JSON preview of samples            |
-| `delete_dataset(id)`                | Delete a dataset                       |
-| `list_versions(name)`              | List version history for a dataset     |
-| `get_latest(name)`                 | Get latest version by name             |
-| `batch_delete(dataset_ids)`        | Delete multiple datasets               |
-| `batch_create(datasets)`           | Create multiple datasets               |
-| `batch_update_tags(dataset_ids, add_tags, remove_tags)` | Update tags on multiple datasets |
-| `batch_export(dataset_ids)`        | Export multiple datasets as ZIP        |
-| `close()`                           | Close the client session               |
+## Research Philosophy
 
-### Exceptions
+The Juniper platform exists to study learning algorithms whose network architecture is not fixed in advance. Its initial anchor is the Cascade-Correlation algorithm of Fahlman and Lebiere (1990), implemented from the primary literature without recourse to higher-level abstractions that elide the algorithm's operational detail. The organising commitment is that algorithm implementations remain inspectable at the level at which they were originally specified: candidate units, correlation objectives, weight-freezing semantics, and the structural events that grow the network are first-class artifacts of the codebase rather than internal details of a library wrapper. This permits comparative work — across algorithms, datasets, and hyperparameter regimes — to be conducted on a known and reproducible substrate.
 
-| Exception                    | Description                   |
-| ---------------------------- | ----------------------------- |
-| `JuniperDataClientError`     | Base exception for all errors |
-| `JuniperDataConnectionError` | Connection to service failed  |
-| `JuniperDataTimeoutError`    | Request timed out             |
-| `JuniperDataNotFoundError`   | Resource not found (404)      |
-| `JuniperDataValidationError` | Invalid parameters (400/422)  |
+The current platform comprises a Cascade-Correlation training service exposing a REST and WebSocket interface, a dataset-generation service with a named-version registry that includes the ARC-AGI families, a real-time monitoring dashboard for inspecting training dynamics as they occur, and a distributed worker that parallelises candidate-unit training across hosts. Near-term work extends the architectural-growth catalogue beyond Cascade-Correlation, introduces multi-network orchestration for comparative experiments at the level of network populations rather than individual runs, and tightens the dataset–training–monitoring loop into a reproducible research workbench. The longer-term direction is the systematic empirical study of constructive and architecture-growing learning algorithms, with first-class infrastructure for the ablation, comparison, and replication that such a study requires.
 
-## NPZ Artifact Schema
+Within this programme, `juniper-data-client` is the canonical integration boundary between the training and data services. Its contract is the dataset-fetch interface used by every training-side consumer; changes to its surface are therefore changes to the platform's shared dataset semantics.
 
-Downloaded artifacts contain the following numpy arrays (all `float32`):
+## Documentation
 
-| Key       | Shape                  | Description                   |
-| --------- | ---------------------- | ----------------------------- |
-| `X_train` | `(n_train, 2)`         | Training features             |
-| `y_train` | `(n_train, n_classes)` | Training labels (one-hot)     |
-| `X_test`  | `(n_test, 2)`          | Test features                 |
-| `y_test`  | `(n_test, n_classes)`  | Test labels (one-hot)         |
-| `X_full`  | `(n_total, 2)`         | Full dataset features         |
-| `y_full`  | `(n_total, n_classes)` | Full dataset labels (one-hot) |
-
-## Configuration
-
-| Parameter        | Default                 | Description                        |
-| ---------------- | ----------------------- | ---------------------------------- |
-| `base_url`       | `http://localhost:8100` | JuniperData service URL            |
-| `timeout`        | `30`                    | Request timeout in seconds         |
-| `retries`        | `3`                     | Number of retry attempts           |
-| `backoff_factor` | `0.5`                   | Backoff multiplier between retries |
-
-## Requirements
-
-- Python >=3.12
-- numpy >=1.24.0
-- requests >=2.28.0
-- urllib3 >=2.0.0
+| Document | Purpose |
+|----------|---------|
+| [`docs/DOCUMENTATION_OVERVIEW.md`](docs/DOCUMENTATION_OVERVIEW.md) | Navigation index for all `juniper-data-client` documentation |
+| [`docs/QUICK_START.md`](docs/QUICK_START.md) | Complete installation and verification guide |
+| [`docs/REFERENCE.md`](docs/REFERENCE.md) | Full API reference, configuration, error model, and NPZ schema |
+| [`docs/DEVELOPER_CHEATSHEET.md`](docs/DEVELOPER_CHEATSHEET.md) | Quick-reference card for development tasks |
+| [`CHANGELOG.md`](CHANGELOG.md) | Version history |
 
 ## License
 
-MIT License - Copyright (c) 2024-2026 Paul Calnon
-
-## Juniper Ecosystem
-
-This package is part of the Juniper Cascade Correlation Neural Network Research Platform.
-
-| Package | Description | Install |
-|---------|-------------|---------|
-| [juniper-data-client](https://github.com/pcalnon/juniper-data-client) | Dataset service client (this package) | `pip install juniper-data-client` |
-| [juniper-cascor-client](https://github.com/pcalnon/juniper-cascor-client) | Neural network service client | `pip install juniper-cascor-client` |
-| [juniper-cascor-worker](https://github.com/pcalnon/juniper-cascor-worker) | Distributed training worker | `pip install juniper-cascor-worker` |
+MIT License — see [`LICENSE`](LICENSE) for details.
