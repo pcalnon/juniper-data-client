@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`util/test_agents_md_version_drift.py`** -- portable port of juniper-ml's lint test pinning `AGENTS.md`'s `**Version**:` header to `pyproject.toml`'s `[project].version`. Catches the failure class where a `pyproject.toml` bump leaves the agent-facing contract stale. Bundled with a one-line `AGENTS.md` bump 0.3.2 → 0.4.1 to clear the pre-existing drift this lint surfaces. Wired into the CI tests job next to the existing `test_workflow_script_paths.py` lint.
+
 ## [0.4.1] - 2026-05-02
 
 **Summary**: METRICS-MON R4.3 + R4.6 ship the optional `on_request` instrumentation hook and outbound `X-Request-ID` propagation. Also rolls in the previously-accumulated `[Unreleased]` work (constants module, DC-01/03 / XREPO-01/01c/09/11, retry-policy change, GENERATOR_CIRCLE alias).
