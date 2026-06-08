@@ -215,3 +215,28 @@ FAKE_SERVICE_STATUS: str = "ok"
 FAKE_SERVICE_NAME: str = "juniper-data"
 FAKE_SERVICE_VERSION: str = "fake"
 FAKE_SERVICE_UPTIME_SECONDS: float = 0.0
+
+# ─── NPZ Artifact Contract (WS-1 / juniper-data#168) ─────────────────────────
+
+# Split suffixes used for every per-split NPZ key (suffix a stem with
+# f"{stem}_{split}", e.g. f"{NPZ_KEY_X}_train").
+NPZ_SPLITS: Tuple[str, ...] = ("train", "test", "full")
+
+# Canonical per-split key stems.
+NPZ_KEY_X: str = "X"  # features: (N, F) tabular or (W, L, F) sequence
+NPZ_KEY_Y: str = "y"  # one-hot classification target
+NPZ_KEY_Y_REG: str = "y_reg"  # regression target (e.g. next-day close)
+NPZ_KEY_T: str = "t"  # absolute per-step time (sequence)
+NPZ_KEY_DT: str = "dt"  # per-step elapsed time / Δt (sequence)
+NPZ_KEY_TARGET_DT: str = "target_dt"  # irregular forecast horizon (sequence)
+NPZ_KEY_OBSERVED_MASK: str = "observed_mask"  # 1=real, 0=imputed (sequence)
+NPZ_KEY_PADDING_MASK: str = "padding_mask"  # 1=valid, 0=structural padding (sequence)
+NPZ_KEY_SEQ_LENGTHS: str = "seq_lengths"  # valid step count per window (sequence)
+
+# Contract discriminators returned by ``validate_npz_contract``.
+CONTRACT_KIND_TABULAR: str = "tabular"
+CONTRACT_KIND_SEQUENCE: str = "sequence"
+
+# ``task_type`` values carried in dataset metadata (meta.json, not the NPZ).
+TASK_TYPE_CLASSIFICATION: str = "classification"
+TASK_TYPE_REGRESSION: str = "regression"
