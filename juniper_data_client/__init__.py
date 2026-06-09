@@ -5,12 +5,14 @@ dataset generation service, used by both JuniperCascor and juniper-canopy.
 """
 
 from juniper_data_client.client import JuniperDataClient, RequestHook
+from juniper_data_client.contract import validate_npz_contract
 from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConfigurationError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
 __version__ = "0.4.1"
 
 __all__ = [
     "JuniperDataClient",
+    "validate_npz_contract",
     "JuniperDataClientError",
     "JuniperDataConfigurationError",
     "JuniperDataConnectionError",

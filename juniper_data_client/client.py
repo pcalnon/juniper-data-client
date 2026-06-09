@@ -525,12 +525,25 @@ class JuniperDataClient:
     def download_artifact_npz(self, dataset_id: str) -> Dict[str, np.ndarray]:
         """Download and load an NPZ artifact for a dataset.
 
-        The returned dictionary contains numpy arrays with the standard keys:
+        The returned dictionary contains every array in the NPZ. Classification
+        artifacts carry the standard keys:
         - X_train, y_train: Training features and one-hot labels
         - X_test, y_test: Test features and one-hot labels
         - X_full, y_full: Full dataset features and one-hot labels
 
-        All arrays are float32 dtype.
+        Additional keys may be present depending on the generator (WS-1 /
+        juniper-data#168):
+        - y_reg_{split}: regression target(s) (e.g. equities next-day close).
+        - 3-D sequence artifacts (X.ndim == 3, shape (W, L, F)) add a per-step
+          dt_{split} (or absolute t_{split}) elapsed-time channel plus
+          target_dt_{split} and optional observed_mask_{split} /
+          padding_mask_{split}. Pass the result to
+          :func:`juniper_data_client.validate_npz_contract` to classify
+          ("tabular" / "sequence") and validate it. The matching ``task_type``
+          ("classification" / "regression") and ``time_unit`` live in the
+          dataset metadata (see :meth:`get_dataset_metadata`).
+
+        Feature and label arrays are float32.
 
         Args:
             dataset_id: ID of the dataset whose artifact to download
