@@ -8,6 +8,7 @@ import io
 import logging
 import os
 import time
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse
 
@@ -18,6 +19,7 @@ from urllib3.util.retry import Retry
 
 from juniper_data_client.constants import (
     API_KEY_ENV_VAR,
+    API_KEY_FILE_ENV_VAR,
     API_KEY_HEADER_NAME,
     API_VERSION_PATH_SUFFIX,
     DEFAULT_BACKOFF_FACTOR,
@@ -63,6 +65,26 @@ from juniper_data_client.constants import (
 from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
 logger = logging.getLogger("juniper_data_client.client")
+
+
+def _resolve_api_key_from_env() -> Optional[str]:
+    """Resolve the juniper-data API key from the environment.
+
+    Honors the Docker-secret ``JUNIPER_DATA_API_KEY_FILE`` indirection (a file whose
+    stripped contents are the key, e.g. ``/run/secrets/juniper_data_api_keys``) before the
+    plain ``JUNIPER_DATA_API_KEY`` env var, so a consumer that mounts the key as a file and
+    leaves ``api_key`` unset still authenticates. Mirrors how the Juniper services resolve
+    their own secrets (e.g. cascor ``api.secrets.get_secret``).
+    """
+    file_path = os.environ.get(API_KEY_FILE_ENV_VAR)
+    if file_path:
+        try:
+            content = Path(file_path).read_text(encoding="utf-8").strip()
+        except OSError:
+            content = ""
+        if content:
+            return content
+    return os.environ.get(API_KEY_ENV_VAR)
 
 
 # METRICS-MON R4.3 / seed-13: type alias for the optional instrumentation
@@ -151,7 +173,7 @@ class JuniperDataClient:
         # guards — the no-op call is a single attribute load + return).
         self._on_request: RequestHook = on_request or _noop_request_hook
 
-        resolved_api_key = api_key or os.environ.get(API_KEY_ENV_VAR)
+        resolved_api_key = api_key or _resolve_api_key_from_env()
         if resolved_api_key:
             self.session.headers[API_KEY_HEADER_NAME] = resolved_api_key
 

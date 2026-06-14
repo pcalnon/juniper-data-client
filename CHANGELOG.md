@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`JUNIPER_DATA_API_KEY_FILE` Docker-secret indirection** (defense-in-depth follow-up to cascor#331): `JuniperDataClient` now resolves its API key from a `JUNIPER_DATA_API_KEY_FILE` env var (a path to a file whose stripped contents are the key, e.g. `/run/secrets/juniper_data_api_keys`) before falling back to the plain `JUNIPER_DATA_API_KEY` env var. An explicit `api_key=` constructor argument still wins over both. This mirrors how the Juniper services resolve their own secrets (cascor `api.secrets.get_secret`) and means a consumer that mounts the key as a Docker secret — and sets only the `_FILE` form — authenticates without an extra wrapper. New `API_KEY_FILE_ENV_VAR` constant and a module-private `_resolve_api_key_from_env()` helper; 3 unit tests pin file-resolution, `_FILE`-over-plain-env precedence, and `api_key=`-over-`_FILE` precedence, plus the existing no-key test hardened to clear both vars.
 - **`util/test_agents_md_version_drift.py`** -- portable port of juniper-ml's lint test pinning `AGENTS.md`'s `**Version**:` header to `pyproject.toml`'s `[project].version`. Catches the failure class where a `pyproject.toml` bump leaves the agent-facing contract stale. Bundled with a one-line `AGENTS.md` bump 0.3.2 → 0.4.1 to clear the pre-existing drift this lint surfaces. Wired into the CI tests job next to the existing `test_workflow_script_paths.py` lint.
 
 ## [0.4.1] - 2026-05-02

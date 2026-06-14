@@ -53,6 +53,11 @@ HEALTH_READY_STATUS: str = "ready"
 
 API_KEY_HEADER_NAME: str = "X-API-Key"
 API_KEY_ENV_VAR: str = "JUNIPER_DATA_API_KEY"
+# Docker-secret indirection: when set, points at a file whose stripped contents are the
+# API key (e.g. /run/secrets/juniper_data_api_keys). The client honors this before the
+# plain API_KEY_ENV_VAR, so a deployment that mounts the key as a file (and sets only the
+# _FILE form) still authenticates -- mirrors how the Juniper services read their secrets.
+API_KEY_FILE_ENV_VAR: str = f"{API_KEY_ENV_VAR}_FILE"
 
 # ─── REST Endpoints ──────────────────────────────────────────────────────────
 
