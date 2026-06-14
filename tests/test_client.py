@@ -102,10 +102,37 @@ class TestClientConfiguration:
         assert client.session.headers.get("X-API-Key") == "param-api-key"
 
     def test_no_api_key_header_when_not_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """No X-API-Key header when API key is not provided."""
+        """No X-API-Key header when API key is not provided (neither plain env nor _FILE)."""
         monkeypatch.delenv("JUNIPER_DATA_API_KEY", raising=False)
+        monkeypatch.delenv("JUNIPER_DATA_API_KEY_FILE", raising=False)
         client = JuniperDataClient()
         assert "X-API-Key" not in client.session.headers
+
+    def test_api_key_from_file_env(self, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+        """API key resolves from the Docker-secret JUNIPER_DATA_API_KEY_FILE indirection."""
+        secret = tmp_path / "juniper_data_api_key"
+        secret.write_text("file-api-key-789\n")
+        monkeypatch.setenv("JUNIPER_DATA_API_KEY_FILE", str(secret))
+        monkeypatch.delenv("JUNIPER_DATA_API_KEY", raising=False)
+        client = JuniperDataClient()
+        assert client.session.headers.get("X-API-Key") == "file-api-key-789"
+
+    def test_api_key_file_takes_precedence_over_plain_env(self, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+        """The _FILE secret wins over the plain env var (the mounted file is the source of truth)."""
+        secret = tmp_path / "juniper_data_api_key"
+        secret.write_text("file-key\n")
+        monkeypatch.setenv("JUNIPER_DATA_API_KEY_FILE", str(secret))
+        monkeypatch.setenv("JUNIPER_DATA_API_KEY", "plain-key")
+        client = JuniperDataClient()
+        assert client.session.headers.get("X-API-Key") == "file-key"
+
+    def test_api_key_parameter_beats_file_env(self, monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+        """An explicit api_key= still takes precedence over the _FILE secret."""
+        secret = tmp_path / "juniper_data_api_key"
+        secret.write_text("file-key\n")
+        monkeypatch.setenv("JUNIPER_DATA_API_KEY_FILE", str(secret))
+        client = JuniperDataClient(api_key="explicit-key")
+        assert client.session.headers.get("X-API-Key") == "explicit-key"
 
 
 @pytest.mark.unit

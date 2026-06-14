@@ -15,6 +15,36 @@ License: MIT License
 
 from typing import List, Tuple
 
+__all__ = [
+    "DEFAULT_BASE_URL",
+    "FAKE_BASE_URL",
+    "DEFAULT_TIMEOUT",
+    "DEFAULT_RETRIES",
+    "DEFAULT_BACKOFF_FACTOR",
+    "RETRYABLE_STATUS_CODES",
+    "RETRY_ALLOWED_METHODS",
+    "HTTP_POOL_CONNECTIONS",
+    "HTTP_POOL_MAXSIZE",
+    "URL_SCHEME_PREFIXES",
+    "DEFAULT_URL_SCHEME_PREFIX",
+    "API_VERSION_PATH_SUFFIX",
+    "DEFAULT_READY_TIMEOUT",
+    "DEFAULT_READY_POLL_INTERVAL",
+    "HEALTH_READY_STATUS",
+    "API_KEY_HEADER_NAME",
+    "API_KEY_ENV_VAR",
+    "API_KEY_FILE_ENV_VAR",
+    "ENDPOINT_HEALTH",
+    "ENDPOINT_HEALTH_READY",
+    "ENDPOINT_GENERATORS",
+    "ENDPOINT_GENERATOR_SCHEMA_TEMPLATE",
+    "ENDPOINT_DATASETS",
+    "ENDPOINT_DATASETS_VERSIONS",
+    "ENDPOINT_DATASETS_LATEST",
+    "ENDPOINT_DATASET_BY_ID_TEMPLATE",
+    "ENDPOINT_DATASET_ARTIFACT_TEMPLATE",
+]
+
 # ─── Service Configuration ───────────────────────────────────────────────────
 
 DEFAULT_BASE_URL: str = "http://localhost:8100"
@@ -53,6 +83,11 @@ HEALTH_READY_STATUS: str = "ready"
 
 API_KEY_HEADER_NAME: str = "X-API-Key"
 API_KEY_ENV_VAR: str = "JUNIPER_DATA_API_KEY"
+# Docker-secret indirection: when set, points at a file whose stripped contents are the
+# API key (e.g. /run/secrets/juniper_data_api_keys). The client honors this before the
+# plain API_KEY_ENV_VAR, so a deployment that mounts the key as a file (and sets only the
+# _FILE form) still authenticates -- mirrors how the Juniper services read their secrets.
+API_KEY_FILE_ENV_VAR: str = f"{API_KEY_ENV_VAR}_FILE"
 
 # ─── REST Endpoints ──────────────────────────────────────────────────────────
 
