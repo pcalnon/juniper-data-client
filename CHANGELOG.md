@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-06-17
+
 ### Added
 
+- **`validate_npz_contract` NPZ data-contract validator** — public helper (`from juniper_data_client import validate_npz_contract`) that classifies an artifact's array bundle as `"tabular"` (2-D `X`) or `"sequence"` (3-D `X` with the WS-1 irregular-Δt keys) and validates the contract invariants (`dt >= 0`, `dt[:, 0] == 0`, mask/shape consistency) with a configurable `dt_atol`. Lets consumers (e.g. the juniper-recurrence app) gate 3-D Δt artifacts up front instead of relying on model-side shape checks. Shipped in the source tree since the WS-1 data foundation but absent from the published 0.4.1 wheel; 12 unit tests in `tests/test_contract.py`.
 - **`JUNIPER_DATA_API_KEY_FILE` Docker-secret indirection** (defense-in-depth follow-up to cascor#331): `JuniperDataClient` now resolves its API key from a `JUNIPER_DATA_API_KEY_FILE` env var (a path to a file whose stripped contents are the key, e.g. `/run/secrets/juniper_data_api_keys`) before falling back to the plain `JUNIPER_DATA_API_KEY` env var. An explicit `api_key=` constructor argument still wins over both. This mirrors how the Juniper services resolve their own secrets (cascor `api.secrets.get_secret`) and means a consumer that mounts the key as a Docker secret — and sets only the `_FILE` form — authenticates without an extra wrapper. New `API_KEY_FILE_ENV_VAR` constant and a module-private `_resolve_api_key_from_env()` helper; 3 unit tests pin file-resolution, `_FILE`-over-plain-env precedence, and `api_key=`-over-`_FILE` precedence, plus the existing no-key test hardened to clear both vars.
-- **`util/test_agents_md_version_drift.py`** -- portable port of juniper-ml's lint test pinning `AGENTS.md`'s `**Version**:` header to `pyproject.toml`'s `[project].version`. Catches the failure class where a `pyproject.toml` bump leaves the agent-facing contract stale. Bundled with a one-line `AGENTS.md` bump 0.3.2 → 0.4.1 to clear the pre-existing drift this lint surfaces. Wired into the CI tests job next to the existing `test_workflow_script_paths.py` lint.
+- **CI lints now run via the `juniper-ci-tools` PyPI package** — the AGENTS.md version-drift lint (`juniper-lint-agents-md-version`) and the workflow script-path lint (`juniper-lint-workflow-paths`) run from the shared `juniper-ci-tools>=0.2.0` console scripts; the former inline `util/test_agents_md_version_drift.py` / `util/test_workflow_script_paths.py` copies were removed. Includes the one-line `AGENTS.md` bump (0.3.2 → 0.4.1) that cleared the drift the version lint surfaces.
 
 ## [0.4.1] - 2026-05-02
 

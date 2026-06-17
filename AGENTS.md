@@ -4,8 +4,8 @@
 **Repository**: pcalnon/juniper-data-client
 **Author**: Paul Calnon
 **License**: MIT License
-**Version**: 0.4.1
-**Last Updated**: 2026-05-22
+**Version**: 0.4.2
+**Last Updated**: 2026-06-17
 
 ---
 

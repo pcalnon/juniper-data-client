@@ -8,7 +8,7 @@ from juniper_data_client.client import JuniperDataClient, RequestHook
 from juniper_data_client.contract import validate_npz_contract
 from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConfigurationError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 __all__ = [
     "JuniperDataClient",
