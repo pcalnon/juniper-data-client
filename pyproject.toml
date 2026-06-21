@@ -102,7 +102,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = ["-ra", "-q", "--strict-markers"]
+addopts = ["-ra", "-q", "--strict-markers", "--strict-config"]
 markers = [
     "unit: Unit tests",
     "integration: Integration tests requiring live service",
