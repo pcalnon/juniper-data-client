@@ -5,7 +5,7 @@
 **Author**: Paul Calnon
 **License**: MIT License
 **Version**: 0.4.2
-**Last Updated**: 2026-06-17
+**Last Updated**: 2026-06-21
 
 ---
 
@@ -43,6 +43,17 @@ python scripts/check_doc_links.py
 # Generate dependency docs
 bash scripts/generate_dep_docs.sh
 ```
+
+### Coverage
+
+Reproduce the CI coverage gate locally (full suite):
+
+```bash
+make coverage                 # convenience wrapper
+bash util/run_coverage.bash   # source of truth (mirrors .github/workflows/ci.yml)
+```
+
+Gate: 80% aggregate (override with `COVERAGE_FAIL_UNDER=<n>`). The script runs the full suite by design so the percentage matches CI; for a narrower run use plain `pytest`.
 
 ---
 
