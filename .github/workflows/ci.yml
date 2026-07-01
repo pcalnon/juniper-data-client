@@ -240,6 +240,7 @@ jobs:
             --cov=juniper_data_client \
             --cov-report=term-missing \
             --cov-report=xml:reports/coverage.xml \
+            --cov-report=json:coverage.json \
             --cov-report=html:reports/htmlcov
 
       - name: Enforce Coverage Gate
@@ -249,6 +250,21 @@ jobs:
           echo "╚════════════════════════════════════════════════════════════╝"
 
           python -m coverage report --fail-under=${COVERAGE_FAIL_UNDER}
+
+      - name: Enforce Per-File Coverage Gate
+        run: |
+          echo "╔════════════════════════════════════════════════════════════╗"
+          echo "║       juniper-data-client - Per-File Coverage Gate         ║"
+          echo "╚════════════════════════════════════════════════════════════╝"
+
+          # Phase C / C-2 of the ecosystem per-file-coverage rollout
+          # (juniper-ml notes/JUNIPER_ECOSYSTEM_PER_FILE_COVERAGE_ROLLOUT_SCOPING_2026-06-30.md).
+          # Blocking gate: fails the job when any source file drops below 90%
+          # statement coverage OR any packaged sub-module below 95% pooled
+          # coverage. Consumes the coverage.json emitted by the unit-test step
+          # above. unit-tests is a required check, so a failure here blocks merge.
+          pip install "juniper-ci-tools>=0.6.0,<0.7.0"
+          juniper-coverage-gap-map --coverage-json coverage.json --enforce
 
       - name: Upload Coverage Artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
