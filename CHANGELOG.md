@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Blocking per-file coverage gate — Phase C / C-2 of the ecosystem per-file-coverage rollout.** The `unit-tests` CI job (a required check) now emits `coverage.json` and runs `juniper-coverage-gap-map --coverage-json coverage.json --enforce` (from `juniper-ci-tools>=0.6.0,<0.7.0`), failing the build when any source file drops below 90% statement coverage or any packaged sub-module below 95% pooled coverage. To clear the bar, `client.py` was lifted from 89.56% to 100% with 8 targeted `responses`-based tests in `tests/test_client_coverage_gaps.py` covering the previously-uncovered paths: the `_resolve_api_key_from_env` `*_FILE` failure branches (unreadable file, empty secret), the `_request` non-JSON error-body fallback, the `wait_for_ready` polling loop (ready + timeout), and the optional-argument branches of `create_dataset` / `create_spiral_dataset` / `batch_update_tags`. See juniper-ml `notes/JUNIPER_ECOSYSTEM_PER_FILE_COVERAGE_ROLLOUT_SCOPING_2026-06-30.md`.
+
 ## [0.4.2] - 2026-06-17
 
 ### Added
