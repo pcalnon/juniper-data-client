@@ -35,7 +35,7 @@
 #
 #    Uses CROSS_REPO_DISPATCH_TOKEN (not GITHUB_TOKEN) so the push re-
 #    triggers CI on the Dependabot branch. See
-#    juniper-ml/notes/V17_V18_CROSS_REPO_DISPATCH_TOKEN_SETUP_2026-05-02.md
+#    juniper-ml/notes/JUNIPER_2026-05-02_JUNIPER-ECOSYSTEM_V17-V18-CROSS-REPO-DISPATCH-TOKEN-SETUP.md
 #    for the secret-provisioning walkthrough.
 #####################################################################################################################################################################################################
 
