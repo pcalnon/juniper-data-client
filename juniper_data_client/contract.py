@@ -12,7 +12,7 @@ per-step ``dt`` (or absolute ``t``) channel plus optional ``observed_mask`` /
 right shape; and ``observed_mask`` only meaningful where ``padding_mask == 1``.
 The 2-D path is untouched and returns immediately.
 
-Reference: ``juniper-ml/notes/JUNIPER_RECURSE_DELTA_T_HANDLING_2026-06-05.md`` §6.
+Reference: ``juniper-ml/notes/JUNIPER_2026-06-05_JUNIPER-RECURRENCE_RECURSE-DELTA-T-HANDLING.md`` §6.
 
 Project: Juniper
 Sub-Project: juniper-data-client

@@ -78,7 +78,7 @@ None known at time of release.
 ## Links
 
 - Changelog: `CHANGELOG.md`
-- Roadmap (I1 / D-2): [JUNIPER_RECURRENCE_STATE_ASSESSMENT_AND_ROADMAP_2026-06-17.md](https://github.com/pcalnon/juniper-ml/blob/main/notes/JUNIPER_RECURRENCE_STATE_ASSESSMENT_AND_ROADMAP_2026-06-17.md)
+- Roadmap (I1 / D-2): [JUNIPER_RECURRENCE_STATE_ASSESSMENT_AND_ROADMAP_2026-06-17.md](https://github.com/pcalnon/juniper-ml/blob/main/notes/JUNIPER_2026-06-17_JUNIPER-RECURRENCE_STATE-ASSESSMENT-AND-ROADMAP.md)
 - **Full Changelog:** https://github.com/pcalnon/juniper-data-client/compare/v0.4.1...v0.4.2
 
 ---
