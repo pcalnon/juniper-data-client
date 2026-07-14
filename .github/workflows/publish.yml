@@ -40,8 +40,14 @@ jobs:
         run: |
           VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           sleep 30
-          pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ juniper-data-client==${VERSION}
-          python -c "import juniper_data_client; print(f'TestPyPI OK: v{juniper_data_client.__version__}')"
+          # NOTE (security): install with --no-deps against TestPyPI only. Do NOT add a
+          # production-PyPI fallback index here — with --no-deps no deps are fetched, so a
+          # fallback only risks resolving a squatted target package. The sleep above covers
+          # TestPyPI index lag.
+          pip install --no-deps --index-url https://test.pypi.org/simple/ juniper-data-client==${VERSION}
+          # Version-only check: juniper_data_client imports numpy/requests at import time, which
+          # are absent under --no-deps; verify the published artifact via its installed metadata.
+          python -c "import importlib.metadata as m; print('TestPyPI OK: v' + m.version('juniper-data-client'))"
 
   pypi:
     name: Publish to PyPI
