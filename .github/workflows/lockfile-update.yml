@@ -8,7 +8,7 @@
 # Version:       0.1.0
 #
 # Date Created:  2026-05-02
-# Last Modified: 2026-05-02
+# Last Modified: 2026-07-28
 #
 # License:       MIT License
 # Copyright:     Copyright (c) 2024-2026 Paul Calnon
@@ -38,6 +38,14 @@
 #    juniper-ml/notes/JUNIPER_2026-05-02_JUNIPER-ECOSYSTEM_V17-V18-CROSS-REPO-DISPATCH-TOKEN-SETUP.md
 #    for the secret-provisioning walkthrough.
 #####################################################################################################################################################################################################
+#
+#    Dependabot caveat (2026-07-28): Dependabot-triggered runs use the
+#    Dependabot secret store, so the repo-scoped CROSS_REPO_DISPATCH_TOKEN is
+#    EMPTY there and the checkout hard-fails on every dependabot/pip/** push
+#    (runs 30269229770 / 29860651075 / 29745272774). The token-availability
+#    gate below turns that arm into a loud green no-op until the owner
+#    registers the same PAT under Settings -> Secrets -> Dependabot. Mirrors
+#    juniper-canopy #476 / juniper-cascor #428 / juniper-data #246.
 
 name: Update Lockfile (Dependabot)
 
@@ -56,21 +64,42 @@ jobs:
     if: github.actor == 'dependabot[bot]'
 
     steps:
+      - name: Gate on CROSS_REPO_DISPATCH_TOKEN availability
+        id: gate
+        env:
+          # Secrets are not readable in job/step `if:` expressions, so surface
+          # presence (never the value) through env for the shell to branch on.
+          HAVE_PAT: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN != '' }}
+        run: |
+          if [[ "${HAVE_PAT}" == "true" ]]; then
+            echo "proceed=true" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ github.actor }}" == "dependabot[bot]" ]]; then
+            echo "::notice::CROSS_REPO_DISPATCH_TOKEN is not available to Dependabot-triggered runs (Dependabot secret store). Skipping auto-regen; the Lockfile Freshness CI gate still enforces staleness. Register the PAT under Settings -> Secrets -> Dependabot to re-enable."
+            echo "proceed=false" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::error::CROSS_REPO_DISPATCH_TOKEN is missing for a non-Dependabot run — secret misconfiguration."
+            exit 1
+          fi
+
       - name: Checkout Code
+        if: steps.gate.outputs.proceed == 'true'
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           token: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
           ref: ${{ github.ref }}
 
       - name: Set up Python
+        if: steps.gate.outputs.proceed == 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.12"
 
       - name: Install uv
+        if: steps.gate.outputs.proceed == 'true'
         run: pip install uv==0.11.8
 
       - name: Regenerate requirements.lock (if present)
+        if: steps.gate.outputs.proceed == 'true'
         run: |
           echo "╔════════════════════════════════════════════════════════════╗"
           echo "║       Juniper Data Client - Regenerate Lockfile            ║"
@@ -92,6 +121,7 @@ jobs:
             -o requirements.lock
 
       - name: Commit updated lockfile
+        if: steps.gate.outputs.proceed == 'true'
         run: |
           if [ ! -f requirements.lock ]; then
             echo "::notice::No requirements.lock to commit — skipping."
