@@ -23,8 +23,12 @@ import pytest
 from juniper_data_client import constants
 from juniper_data_client.testing import FakeDataClient
 
-# Source of truth for the server-side generator registry. Must be kept
-# aligned with ``juniper_data/api/routes/generators.py::GENERATOR_REGISTRY``.
+# Offline mirror of the server-side generator registry, kept aligned with
+# ``juniper_data/api/routes/generators.py::GENERATOR_REGISTRY``. W-9: this is
+# no longer trusted blindly — ``TestPinnedMirrorMatchesLiveRegistry`` below
+# cross-checks it against the LIVE registry whenever juniper-data is
+# importable, so the reverse assertion cannot pass vacuously against a stale
+# hand-kept list.
 EXPECTED_SERVER_GENERATORS: frozenset[str] = frozenset(
     {
         "spiral",
@@ -36,8 +40,30 @@ EXPECTED_SERVER_GENERATORS: frozenset[str] = frozenset(
         "csv_import",
         "mnist",
         "arc_agi",
+        # W-9 (2026-08-08): the equities pair + the five sequence generators.
+        "equities",
+        "equities_seq",
+        "multi_sine",
+        "mackey_glass",
+        "ar_p",
+        "irregular_sine",
+        "delay_product",
     }
 )
+
+
+def _live_server_generators() -> "frozenset[str] | None":
+    """The real server registry's keys when juniper-data is importable here, else None.
+
+    Importing the routes module pulls FastAPI along; any import failure —
+    juniper-data absent or its dependency stack unavailable — means "cannot
+    cross-check in this environment", never a test failure.
+    """
+    try:
+        from juniper_data.api.routes.generators import GENERATOR_REGISTRY
+    except Exception:  # noqa: BLE001 — absence of the optional cross-check env, not an error
+        return None
+    return frozenset(GENERATOR_REGISTRY)
 
 
 CLIENT_GENERATOR_CONSTANTS: dict[str, str] = {
@@ -50,6 +76,14 @@ CLIENT_GENERATOR_CONSTANTS: dict[str, str] = {
     "GENERATOR_CSV_IMPORT": constants.GENERATOR_CSV_IMPORT,
     "GENERATOR_MNIST": constants.GENERATOR_MNIST,
     "GENERATOR_ARC_AGI": constants.GENERATOR_ARC_AGI,
+    # W-9 (2026-08-08): the 7 previously-missing generators.
+    "GENERATOR_EQUITIES": constants.GENERATOR_EQUITIES,
+    "GENERATOR_EQUITIES_SEQ": constants.GENERATOR_EQUITIES_SEQ,
+    "GENERATOR_MULTI_SINE": constants.GENERATOR_MULTI_SINE,
+    "GENERATOR_MACKEY_GLASS": constants.GENERATOR_MACKEY_GLASS,
+    "GENERATOR_AR_P": constants.GENERATOR_AR_P,
+    "GENERATOR_IRREGULAR_SINE": constants.GENERATOR_IRREGULAR_SINE,
+    "GENERATOR_DELAY_PRODUCT": constants.GENERATOR_DELAY_PRODUCT,
 }
 
 
@@ -87,12 +121,37 @@ class TestGeneratorConstantParity:
             (constants.GENERATOR_CSV_IMPORT, constants.GENERATOR_DESCRIPTION_CSV_IMPORT),
             (constants.GENERATOR_MNIST, constants.GENERATOR_DESCRIPTION_MNIST),
             (constants.GENERATOR_ARC_AGI, constants.GENERATOR_DESCRIPTION_ARC_AGI),
+            (constants.GENERATOR_EQUITIES, constants.GENERATOR_DESCRIPTION_EQUITIES),
+            (constants.GENERATOR_EQUITIES_SEQ, constants.GENERATOR_DESCRIPTION_EQUITIES_SEQ),
+            (constants.GENERATOR_MULTI_SINE, constants.GENERATOR_DESCRIPTION_MULTI_SINE),
+            (constants.GENERATOR_MACKEY_GLASS, constants.GENERATOR_DESCRIPTION_MACKEY_GLASS),
+            (constants.GENERATOR_AR_P, constants.GENERATOR_DESCRIPTION_AR_P),
+            (constants.GENERATOR_IRREGULAR_SINE, constants.GENERATOR_DESCRIPTION_IRREGULAR_SINE),
+            (constants.GENERATOR_DELAY_PRODUCT, constants.GENERATOR_DESCRIPTION_DELAY_PRODUCT),
         ],
     )
     def test_description_exists_for_each_generator(self, name: str, description: str) -> None:
         """Every generator constant has a matching human-readable description."""
         assert isinstance(description, str)
         assert description.strip(), f"Description for {name!r} must be non-empty"
+
+
+class TestPinnedMirrorMatchesLiveRegistry:
+    """W-9: validate the hand-kept mirror against the LIVE server registry.
+
+    ``EXPECTED_SERVER_GENERATORS`` is only a mirror; before W-9 nothing checked
+    it against juniper-data itself, so the reverse assertion above passed
+    vacuously while the server grew 7 generators the client never heard of.
+    When juniper-data is importable (dev envs; any CI lane that installs it),
+    the mirror must equal the real ``GENERATOR_REGISTRY`` keys exactly; when it
+    is not, this cross-check skips and the pinned mirror remains the gate.
+    """
+
+    def test_pinned_mirror_matches_live_registry(self) -> None:
+        live = _live_server_generators()
+        if live is None:
+            pytest.skip("juniper-data not importable here — pinned mirror not cross-checked")
+        assert EXPECTED_SERVER_GENERATORS == live, f"Pinned mirror drifted from the live server registry. Missing from mirror: {sorted(live - EXPECTED_SERVER_GENERATORS)}; stale in mirror: {sorted(EXPECTED_SERVER_GENERATORS - live)}"
 
 
 class TestFakeClientLegacyAlias:
