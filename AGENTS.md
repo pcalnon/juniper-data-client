@@ -5,7 +5,7 @@
 **Author**: Paul Calnon
 **License**: MIT License
 **Version**: 0.4.2
-**Last Updated**: 2026-06-21
+**Last Updated**: 2026-08-08
 
 ---
 
@@ -370,6 +370,8 @@ When adding a new HTTP endpoint or constructor parameter:
 | `ci.yml` | Push/PR to main | Pre-commit, tests (Python 3.12/3.13/3.14 matrix), coverage (80% min), doc link validation, security scanning (Gitleaks, Bandit, pip-audit), build verification, quality gate |
 | `publish.yml` | GitHub Release | Publishes to TestPyPI (with install verification) then PyPI; trusted publishing (OIDC); build attestations |
 | `security-scan.yml` | Weekly schedule | Bandit code scanning + pip-audit dependency vulnerability check |
+| `sequence-safety.yml` | PR to main/develop | **Advisory** per-PR compositional-loss net (rollout Wave 2): AST symbol-loss screen (scope `juniper_data_client/**/*.py` + `tests/**/*.py`) + docs deletion-magnitude screen, from the published `juniper-ci-tools` console scripts. Standalone, never a required check; the `allow-symbol-loss` / `docs-rewrite` labels demote a FAIL to WARN-only |
+| `main-verify.yml` | Push to main | **Advisory** post-merge, bypass-proof run of the same two screens over the catch-up base .. merge tip (per-SHA, no-cancel so every merge is verified during a storm); screens-only (no regression battery); files one stable-title tracking issue per red streak on failure |
 
 ### Pre-Commit Hooks
 
