@@ -148,6 +148,18 @@ GENERATOR_CHECKERBOARD: str = "checkerboard"
 GENERATOR_CSV_IMPORT: str = "csv_import"
 GENERATOR_MNIST: str = "mnist"
 GENERATOR_ARC_AGI: str = "arc_agi"
+# W-9 (CLI experimentation plan §11, 2026-08-08): added constants for the 7
+# server generators the client still lacked — the equities pair plus the five
+# sequence generators (juniper-data ≥ 0.8/0.9). The parity test now also
+# cross-checks the pinned mirror against the LIVE server registry whenever
+# juniper-data is importable, so this list can no longer drift silently.
+GENERATOR_EQUITIES: str = "equities"
+GENERATOR_EQUITIES_SEQ: str = "equities_seq"
+GENERATOR_MULTI_SINE: str = "multi_sine"
+GENERATOR_MACKEY_GLASS: str = "mackey_glass"
+GENERATOR_AR_P: str = "ar_p"
+GENERATOR_IRREGULAR_SINE: str = "irregular_sine"
+GENERATOR_DELAY_PRODUCT: str = "delay_product"
 
 # ─── Generator Catalog Metadata ──────────────────────────────────────────────
 
@@ -161,6 +173,13 @@ GENERATOR_DESCRIPTION_CHECKERBOARD: str = "Checkerboard pattern classification d
 GENERATOR_DESCRIPTION_CSV_IMPORT: str = "CSV/JSON import for custom datasets"
 GENERATOR_DESCRIPTION_MNIST: str = "MNIST and Fashion-MNIST digit classification dataset"
 GENERATOR_DESCRIPTION_ARC_AGI: str = "ARC-AGI visual reasoning tasks dataset"
+GENERATOR_DESCRIPTION_EQUITIES: str = "Real equities OHLCV tabular dataset (next-day direction)"
+GENERATOR_DESCRIPTION_EQUITIES_SEQ: str = "Real equities irregular-Δt sequence dataset (calendar-gap Δt)"
+GENERATOR_DESCRIPTION_MULTI_SINE: str = "Regular-Δt superimposed-sinusoid sequence dataset"
+GENERATOR_DESCRIPTION_MACKEY_GLASS: str = "Regular-Δt Mackey-Glass chaotic sequence dataset"
+GENERATOR_DESCRIPTION_AR_P: str = "Regular-Δt stable AR(p) linear-stochastic sequence dataset"
+GENERATOR_DESCRIPTION_IRREGULAR_SINE: str = "Irregular-Δt superimposed-sinusoid sequence dataset"
+GENERATOR_DESCRIPTION_DELAY_PRODUCT: str = "Irregular-Δt bilinear delay-product capacity sequence dataset"
 
 # ─── Generator Defaults — Spiral ─────────────────────────────────────────────
 
