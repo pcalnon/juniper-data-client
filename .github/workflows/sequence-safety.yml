@@ -64,7 +64,7 @@
 #    - juniper-ml notes/JUNIPER_2026-07-28_JUNIPER-ML_CURSOR-PR-FLOOD-REMEDIATION-ANALYSIS.md
 #####################################################################################################################################################################################################
 
-name: Sequence Safety (Advisory)
+name: Sequence Safety
 
 on:
   pull_request:
@@ -90,7 +90,7 @@ jobs:
   # context, never wired into the CI gate.
   # ═══════════════════════════════════════════════════════════════════════════════════════════════
   sequence-safety:
-    name: Sequence Safety (Advisory)
+    name: Sequence Safety
     runs-on: ubuntu-latest
     permissions:
       contents: read
