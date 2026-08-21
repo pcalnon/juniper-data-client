@@ -16,6 +16,8 @@ Tests covered:
 
 from __future__ import annotations
 
+import os
+import sys
 import warnings
 
 import pytest
@@ -64,6 +66,24 @@ def _live_server_generators() -> "frozenset[str] | None":
     except Exception:  # noqa: BLE001 — absence of the optional cross-check env, not an error
         return None
     return frozenset(GENERATOR_REGISTRY)
+
+
+#: W-9 enforcement switch, set by the CI lane that installs juniper-data.
+#:
+#: The cross-check below degrades to ``pytest.skip`` when juniper-data is absent, which is
+#: correct for a laptop or a lane that never promised to run it — and useless as a gate,
+#: because a skip is indistinguishable from a pass in a green run. Before this switch NO
+#: lane installed juniper-data (all four ``pip install -e ".[test]"`` sites install pytest,
+#: pytest-cov, pytest-timeout, responses and juniper-observability), so the cross-check
+#: skipped in CI 100% of the time and the pinned mirror was exactly as stale-able as it was
+#: before W-9 added it. The trap is that juniper-data IS importable on a dev workstation, so
+#: the check runs and passes locally: local green proved nothing about the lane.
+REQUIRE_LIVE_REGISTRY_ENV = "JUNIPER_DATA_CLIENT_REQUIRE_LIVE_REGISTRY"
+
+
+def _requires_live_registry() -> bool:
+    """Whether this environment promised to cross-check, making a skip a failure."""
+    return os.environ.get(REQUIRE_LIVE_REGISTRY_ENV, "").strip().lower() in {"1", "true", "yes"}
 
 
 CLIENT_GENERATOR_CONSTANTS: dict[str, str] = {
@@ -150,8 +170,79 @@ class TestPinnedMirrorMatchesLiveRegistry:
     def test_pinned_mirror_matches_live_registry(self) -> None:
         live = _live_server_generators()
         if live is None:
+            if _requires_live_registry():
+                pytest.fail(f"{REQUIRE_LIVE_REGISTRY_ENV} is set, so this lane exists to cross-check the pinned " "mirror against the live registry — but juniper-data is not importable here, so the " "cross-check would have SKIPPED and the lane would have reported success having " "verified nothing. Install juniper-data in this lane, or unset the switch.")
             pytest.skip("juniper-data not importable here — pinned mirror not cross-checked")
         assert EXPECTED_SERVER_GENERATORS == live, f"Pinned mirror drifted from the live server registry. Missing from mirror: {sorted(live - EXPECTED_SERVER_GENERATORS)}; stale in mirror: {sorted(EXPECTED_SERVER_GENERATORS - live)}"
+
+
+class TestLiveRegistryEnforcementSwitch:
+    """W-9: the switch that turns a vacuous skip into a failure must itself be tested.
+
+    A guard against vacuous passes is worth nothing if the guard is vacuous. These cover
+    ``_requires_live_registry`` directly rather than the ``pytest.fail`` branch, which
+    cannot be exercised in-process without failing the test that calls it.
+    """
+
+    def test_unset_means_skipping_is_allowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A laptop or a lane that never promised to cross-check may still skip."""
+        monkeypatch.delenv(REQUIRE_LIVE_REGISTRY_ENV, raising=False)
+        assert _requires_live_registry() is False
+
+    @pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", " 1 "])
+    def test_truthy_values_demand_the_cross_check(self, monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+        """The enforcing lane sets this, and several spellings must all mean "enforce".
+
+        A switch that silently reads as off when someone writes ``true`` instead of ``1``
+        reintroduces the exact silent-skip failure it exists to prevent.
+        """
+        monkeypatch.setenv(REQUIRE_LIVE_REGISTRY_ENV, value)
+        assert _requires_live_registry() is True
+
+    @pytest.mark.parametrize("value", ["", "0", "false", "no"])
+    def test_falsy_values_leave_the_skip_in_place(self, monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+        """Explicitly disabling it is honoured, so the switch can be turned off deliberately."""
+        monkeypatch.setenv(REQUIRE_LIVE_REGISTRY_ENV, value)
+        assert _requires_live_registry() is False
+
+    def test_a_missing_juniper_data_fails_rather_than_skips(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The negative control: the exact regression this switch exists to catch.
+
+        If the enforcing lane ever loses its ``pip install juniper-data`` — a dependency
+        bump, a refactor of the install step — the cross-check silently reverts to skipping
+        and the lane goes green having verified nothing. That is how W-9 shipped. Here the
+        probe is forced to report "not importable" with the switch on, and the cross-check
+        must raise rather than skip.
+        """
+        monkeypatch.setenv(REQUIRE_LIVE_REGISTRY_ENV, "1")
+        monkeypatch.setattr(sys.modules[__name__], "_live_server_generators", lambda: None)
+
+        with pytest.raises(pytest.fail.Exception, match="verified nothing"):
+            TestPinnedMirrorMatchesLiveRegistry().test_pinned_mirror_matches_live_registry()
+
+    def test_a_missing_juniper_data_still_skips_when_not_enforcing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Off the enforcing lane the degradation is still a skip, not a failure.
+
+        Contributors without juniper-data installed must not see a red suite.
+        """
+        monkeypatch.delenv(REQUIRE_LIVE_REGISTRY_ENV, raising=False)
+        monkeypatch.setattr(sys.modules[__name__], "_live_server_generators", lambda: None)
+
+        with pytest.raises(pytest.skip.Exception):
+            TestPinnedMirrorMatchesLiveRegistry().test_pinned_mirror_matches_live_registry()
+
+    def test_the_enforcing_lane_can_actually_import_juniper_data(self) -> None:
+        """In the enforcing lane the probe must return a real registry, not None.
+
+        This is the positive assertion the acceptance asks for: it is not enough that the
+        cross-check *would* fail on a skip, the lane must demonstrably reach the live
+        registry. Outside that lane this is a no-op.
+        """
+        if not _requires_live_registry():
+            pytest.skip(f"{REQUIRE_LIVE_REGISTRY_ENV} not set — not the enforcing lane")
+        live = _live_server_generators()
+        assert live is not None, "the enforcing lane must be able to import juniper_data"
+        assert live, "the live registry must not be empty"
 
 
 class TestFakeClientLegacyAlias:
