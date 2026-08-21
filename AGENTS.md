@@ -5,7 +5,7 @@
 **Author**: Paul Calnon
 **License**: MIT License
 **Version**: 0.4.2
-**Last Updated**: 2026-08-08
+**Last Updated**: 2026-08-21
 
 ---
 
@@ -265,6 +265,43 @@ JuniperDataClientError (base)
 | 404 | `JuniperDataNotFoundError` |
 | Connection failure | `JuniperDataConnectionError` |
 | Timeout | `JuniperDataTimeoutError` |
+
+### Exception context (do not remove)
+
+Every exception in the hierarchy carries four attributes, set by the base
+`__init__`:
+
+| Attribute | Meaning |
+|-----------|---------|
+| `message` | The human-readable summary; also what `str(exc)` returns. |
+| `status_code` | HTTP status of the originating response, or `None` when the error was raised without one (configuration, connection, timeout, retry-exhausted). |
+| `detail` | The server's `detail` payload **exactly as decoded** — a `str` for most handlers, a `list[dict]` for FastAPI's 422. Never stringified. |
+| `response` | The originating `requests.Response`, when there was one. |
+
+`status_code` is the **only** thing separating a 400 from a 422 — both raise
+`JuniperDataValidationError`. Before it existed, telling them apart meant
+substring-matching the message.
+
+Three constraints a refactor must not break:
+
+- **The extra parameters are keyword-only**, so existing single-positional-message
+  call sites keep working. Making any of them positional is a breaking change for
+  every downstream caller.
+- **`detail` keeps the server's structure.** The message renders a 422 list as
+  `body.seed: Field required` via `client._render_error_detail`, but the list
+  itself stays on the attribute. Interpolating it into the message was the whole
+  defect — the result was an unparseable Python repr.
+- **`__reduce__` must stay.** `BaseException.__reduce__` rebuilds from `args`,
+  which holds only the message, so without it a pickle/copy round-trip returns an
+  exception that looks right and has silently lost the context. That is what
+  flake8-bugbear's `B042` warns about; the `noqa` on `__init__` is paired with
+  `__reduce__`, not a dismissal.
+
+`FakeDataClient` populates `status_code` on every error it raises, mirroring the
+real service (400 for an unknown generator, 422 for a `ttl_seconds` violation,
+404 for a missing resource). It is documented as a drop-in replacement — a double
+that raised the right type with `status_code=None` would let a consumer's test
+pass against behaviour production does not have.
 
 ---
 

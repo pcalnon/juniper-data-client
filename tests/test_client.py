@@ -821,3 +821,221 @@ class TestVersioning:
         client = JuniperDataClient()
         with pytest.raises(JuniperDataNotFoundError):
             client.get_latest("nonexistent")
+
+
+@pytest.mark.unit
+class TestExceptionContext:
+    """Exceptions must carry machine-readable context, not just prose.
+
+    Regression coverage for defect-register ``APD-DCLIENT-001`` (no
+    ``status_code`` / ``detail`` / ``response``, so a 400 and a 422 raised the
+    same type with the same text) and ``APD-DCLIENT-003`` (a FastAPI 422
+    ``detail`` LIST was f-string-interpolated into an unparseable Python repr).
+    """
+
+    #: A real FastAPI 422 body: ``detail`` is a list of error objects.
+    FASTAPI_422_DETAIL = [
+        {"type": "missing", "loc": ["body", "seed"], "msg": "Field required"},
+        {"type": "int_parsing", "loc": ["body", "n_spirals"], "msg": "Input should be a valid integer"},
+    ]
+
+    @responses.activate
+    def test_status_code_separates_400_from_422(self) -> None:
+        """The whole point of APD-DCLIENT-001: these were byte-identical before."""
+        responses.add(responses.POST, "http://localhost:8100/v1/datasets", json={"detail": "bad"}, status=400)
+        responses.add(responses.POST, "http://localhost:8100/v1/datasets", json={"detail": "bad"}, status=422)
+
+        client = JuniperDataClient()
+
+        with pytest.raises(JuniperDataValidationError) as first:
+            client.create_dataset("spiral", {})
+        with pytest.raises(JuniperDataValidationError) as second:
+            client.create_dataset("spiral", {})
+
+        assert {first.value.status_code, second.value.status_code} == {400, 422}
+
+    @responses.activate
+    def test_422_detail_list_is_preserved_as_structure(self) -> None:
+        """APD-DCLIENT-003: the caller gets the list, not a repr of it."""
+        responses.add(
+            responses.POST,
+            "http://localhost:8100/v1/datasets",
+            json={"detail": self.FASTAPI_422_DETAIL},
+            status=422,
+        )
+
+        client = JuniperDataClient()
+        with pytest.raises(JuniperDataValidationError) as exc_info:
+            client.create_dataset("spiral", {})
+
+        assert exc_info.value.detail == self.FASTAPI_422_DETAIL
+        assert exc_info.value.detail[0]["loc"] == ["body", "seed"]
+
+    @responses.activate
+    def test_422_message_is_readable_not_a_python_repr(self) -> None:
+        """The message renders the same content without the repr punctuation."""
+        responses.add(
+            responses.POST,
+            "http://localhost:8100/v1/datasets",
+            json={"detail": self.FASTAPI_422_DETAIL},
+            status=422,
+        )
+
+        client = JuniperDataClient()
+        with pytest.raises(JuniperDataValidationError) as exc_info:
+            client.create_dataset("spiral", {})
+
+        message = str(exc_info.value)
+        assert "body.seed: Field required" in message
+        assert "body.n_spirals: Input should be a valid integer" in message
+        # The old behaviour interpolated the list itself; these are its
+        # fingerprints and none of them should survive into the message.
+        assert "'type':" not in message
+        assert "[{" not in message
+
+    @responses.activate
+    def test_response_is_attached_for_header_access(self) -> None:
+        """``response`` lets a caller reach headers the message cannot carry."""
+        responses.add(
+            responses.POST,
+            "http://localhost:8100/v1/datasets",
+            json={"detail": "nope"},
+            status=400,
+            headers={"X-Request-ID": "abc123"},
+        )
+
+        client = JuniperDataClient()
+        with pytest.raises(JuniperDataValidationError) as exc_info:
+            client.create_dataset("spiral", {})
+
+        assert exc_info.value.response is not None
+        assert exc_info.value.response.headers["X-Request-ID"] == "abc123"
+
+    @responses.activate
+    def test_not_found_and_generic_errors_also_carry_status(self) -> None:
+        """Every response-derived branch populates the context, not just 400/422.
+
+        The generic arm deliberately uses **409**, not a 5xx. Everything in
+        ``RETRYABLE_STATUS_CODES`` (429/500/502/503/504) is consumed by the
+        urllib3 ``Retry`` adapter, which exhausts and raises a
+        ``RequestException`` -- so those never reach the response-handling
+        branch at all, and the resulting error legitimately has no single
+        authoritative status to report.
+        """
+        responses.add(responses.GET, "http://localhost:8100/v1/datasets/missing", json={"detail": "gone"}, status=404)
+        responses.add(responses.GET, "http://localhost:8100/v1/datasets/boom", json={"detail": "kaboom"}, status=409)
+
+        client = JuniperDataClient()
+
+        with pytest.raises(JuniperDataNotFoundError) as not_found:
+            client.get_dataset_metadata("missing")
+        assert not_found.value.status_code == 404
+
+        with pytest.raises(JuniperDataClientError) as generic:
+            client.get_dataset_metadata("boom")
+        assert generic.value.status_code == 409
+
+    def test_locally_raised_errors_have_no_status_code(self) -> None:
+        """Backward compatibility: no HTTP response means the fields stay None.
+
+        Configuration and connection failures are raised before any response
+        exists, so a caller must not read ``status_code`` as "0" or crash on a
+        missing attribute -- it is simply ``None``.
+        """
+        error = JuniperDataClientError("something local went wrong")
+
+        assert error.status_code is None
+        assert error.detail is None
+        assert error.response is None
+        assert str(error) == "something local went wrong"
+
+    def test_positional_message_construction_still_works(self) -> None:
+        """Backward compatibility: the added parameters are keyword-only.
+
+        Consumers (and this library's own fake) construct these with a single
+        positional message. That must keep working, or adding context to the
+        hierarchy would be a breaking change for every downstream caller.
+        """
+        for factory in (JuniperDataClientError, JuniperDataNotFoundError, JuniperDataValidationError):
+            error = factory("plain message")
+            assert str(error) == "plain message"
+            assert error.status_code is None
+
+    def test_context_survives_pickle_and_copy(self) -> None:
+        """A round-trip must not silently drop the context (flake8-bugbear B042).
+
+        ``BaseException.__reduce__`` rebuilds from ``args``, which holds only
+        the message — so without an override, unpickling would hand back an
+        exception that looks correct and has lost ``status_code`` / ``detail``.
+        Exceptions cross process boundaries here whenever a worker returns a
+        failure to its parent, so this is a real path, not a theoretical one.
+        """
+        import copy as copy_module
+
+        # Bandit blacklists ``pickle`` (B403/B301) because deserializing
+        # UNTRUSTED data executes arbitrary code (CWE-502). Nothing untrusted is
+        # involved here: the payload is produced by ``pickle.dumps`` below, in
+        # this process, from an exception this test just constructed. The
+        # round-trip IS the assertion, so the import cannot be dropped without
+        # losing the coverage that pins ``__reduce__``.
+        #
+        # The suppressions are the trailing inline markers only. A comment line
+        # that *begins* with the marker word is itself parsed as a directive,
+        # and bandit then reads the following prose as test IDs.
+        import pickle  # nosec B403
+
+        original = JuniperDataValidationError(
+            "Validation error (422): body.seed: Field required",
+            status_code=422,
+            detail=[{"loc": ["body", "seed"], "msg": "Field required"}],
+        )
+
+        # Same reasoning as the import: the bytes come from the ``dumps`` in
+        # this very expression, never from a caller, a file, or the network.
+        round_tripped = pickle.loads(pickle.dumps(original))  # nosec B301
+
+        for rebuilt in (round_tripped, copy_module.copy(original), copy_module.deepcopy(original)):
+            assert isinstance(rebuilt, JuniperDataValidationError)
+            assert rebuilt.status_code == 422
+            assert rebuilt.detail == [{"loc": ["body", "seed"], "msg": "Field required"}]
+            assert str(rebuilt) == str(original)
+
+
+@pytest.mark.unit
+class TestFakeClientMatchesRealExceptionContext:
+    """``FakeDataClient`` is documented as a drop-in replacement, so it must
+    populate the same context the real client does.
+
+    A double that raises the right *type* with ``status_code=None`` lets a
+    consumer's test pass against behaviour production does not have -- the
+    masked-seam failure mode. These pin the two statuses that differ.
+    """
+
+    def test_fake_not_found_carries_404(self) -> None:
+        from juniper_data_client.testing import FakeDataClient
+
+        fake = FakeDataClient()
+        with pytest.raises(JuniperDataNotFoundError) as exc_info:
+            fake.get_dataset_metadata("no-such-dataset")
+
+        assert exc_info.value.status_code == 404
+
+    def test_fake_unknown_generator_carries_400_like_the_service(self) -> None:
+        """juniper-data raises an explicit HTTPException(400) for this."""
+        from juniper_data_client.testing import FakeDataClient
+
+        fake = FakeDataClient()
+        with pytest.raises(JuniperDataValidationError) as exc_info:
+            fake.create_dataset("no-such-generator", {})
+
+        assert exc_info.value.status_code == 400
+
+    def test_fake_ttl_violation_carries_422_like_pydantic(self) -> None:
+        """``ttl_seconds`` is a pydantic ``Field(ge=1)``, which FastAPI answers 422."""
+        from juniper_data_client.testing import FakeDataClient
+
+        fake = FakeDataClient()
+        with pytest.raises(JuniperDataValidationError) as exc_info:
+            fake.create_dataset("spiral", {}, ttl_seconds=0)
+
+        assert exc_info.value.status_code == 422
