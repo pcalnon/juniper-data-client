@@ -399,7 +399,10 @@ jobs:
           # The whole point of this lane. juniper-data requires Python >=3.12.
           #
           # The [api] extra is REQUIRED, not decorative: GENERATOR_REGISTRY is defined only in
-          # juniper_data/api/routes/generators.py, and juniper-data's core dependencies are just
+          # the juniper_data.api.routes.generators module (dotted deliberately -- a repo-relative
+          # path here names a file that exists in juniper-data, not in this repo, and
+          # juniper-lint-workflow-paths correctly flags it as missing). juniper-data's core
+          # dependencies are just
           # cachetools / numpy / pydantic / python-dotenv. A bare `pip install juniper-data`
           # installs cleanly and then fails the import with "No module named 'fastapi'" -- which
           # is precisely the skip-instead-of-fail this lane exists to prevent, so it surfaces as
