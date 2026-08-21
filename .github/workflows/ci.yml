@@ -357,6 +357,80 @@ jobs:
           retention-days: 30
 
   # ═══════════════════════════════════════════════════════════════════════════════════════════════
+  # Generator Parity: the ONLY lane that installs juniper-data, so the W-9 cross-check runs
+  #
+  # tests/test_generator_parity.py cross-checks the hand-kept EXPECTED_SERVER_GENERATORS mirror
+  # against the real GENERATOR_REGISTRY -- but it skips when juniper-data is not importable, and
+  # no lane installed it. The four `pip install -e ".[test]"` sites install pytest, pytest-cov,
+  # pytest-timeout, responses and juniper-observability; juniper-data is not among them. So the
+  # cross-check skipped in CI 100% of the time and the mirror stayed exactly as stale-able as it
+  # was before W-9 added it. It passes on a dev workstation, where juniper_data IS importable --
+  # local green proved nothing about this lane.
+  #
+  # JUNIPER_DATA_CLIENT_REQUIRE_LIVE_REGISTRY makes a skip here a FAILURE, so this lane cannot
+  # regress to reporting success having verified nothing (e.g. if the install below is dropped).
+  #
+  # juniper-data comes from PyPI, unpinned, so a newly RELEASED generator is caught immediately.
+  # The known lag: a generator added to juniper-data main is only caught here once released.
+  # Closing that would mean installing from git and coupling this repo's CI to another repo's
+  # main; the release boundary is also the boundary a client's users actually see.
+  # ═══════════════════════════════════════════════════════════════════════════════════════════════
+  generator-parity:
+    name: Generator Parity (live registry cross-check)
+    runs-on: ubuntu-latest
+    needs: [pre-commit]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies (including juniper-data)
+        run: |
+          python -m pip install --upgrade "pip>=26.1.1"
+          pip install -e ".[test]"
+          # The whole point of this lane. juniper-data requires Python >=3.12.
+          #
+          # The [api] extra is REQUIRED, not decorative: GENERATOR_REGISTRY is defined only in
+          # the juniper_data.api.routes.generators module (dotted deliberately -- a repo-relative
+          # path here names a file that exists in juniper-data, not in this repo, and
+          # juniper-lint-workflow-paths correctly flags it as missing). juniper-data's core
+          # dependencies are just
+          # cachetools / numpy / pydantic / python-dotenv. A bare `pip install juniper-data`
+          # installs cleanly and then fails the import with "No module named 'fastapi'" -- which
+          # is precisely the skip-instead-of-fail this lane exists to prevent, so it surfaces as
+          # a red lane rather than a green one.
+          pip install "juniper-data[api]"
+
+      - name: Confirm juniper-data is importable
+        run: |
+          python -c "from juniper_data.api.routes.generators import GENERATOR_REGISTRY; print(f'live registry: {len(GENERATOR_REGISTRY)} generators')"
+
+      - name: Run Generator Parity Cross-Check
+        env:
+          JUNIPER_DATA_CLIENT_REQUIRE_LIVE_REGISTRY: "1"
+        run: |
+          echo "╔════════════════════════════════════════════════════════════╗"
+          echo "║   juniper-data-client - Generator Parity (live registry)    ║"
+          echo "╚════════════════════════════════════════════════════════════╝"
+
+          # -p no:randomly keeps the report readable; --no-header trims noise.
+          # A skip in THIS lane is a failure by construction (see the env var above),
+          # but -rs still surfaces any other skip for review.
+          python -m pytest \
+            tests/test_generator_parity.py \
+            --verbose \
+            -rs \
+            --timeout=120
+
+  # ═══════════════════════════════════════════════════════════════════════════════════════════════
   # Build: Build sdist and wheel artifacts
   # ═══════════════════════════════════════════════════════════════════════════════════════════════
   build:
@@ -560,7 +634,7 @@ jobs:
     name: Quality Gate
     runs-on: ubuntu-latest
     if: always()
-    needs: [pre-commit, unit-tests, integration-tests, build, dependency-docs, security, docs]
+    needs: [pre-commit, unit-tests, integration-tests, generator-parity, build, dependency-docs, security, docs]
 
     steps:
       - name: Check Quality Gate Status
@@ -572,6 +646,7 @@ jobs:
           echo "Pre-commit:        ${{ needs.pre-commit.result }}"
           echo "Unit Tests:        ${{ needs.unit-tests.result }}"
           echo "Integration Tests: ${{ needs.integration-tests.result }}"
+          echo "Generator Parity:  ${{ needs.generator-parity.result }}"
           echo "Build:             ${{ needs.build.result }}"
           echo "Dependency Docs:   ${{ needs.dependency-docs.result }}"
           echo "Security:          ${{ needs.security.result }}"
@@ -587,6 +662,14 @@ jobs:
           # Unit tests MUST pass
           if [[ "${{ needs.unit-tests.result }}" != "success" ]]; then
             echo "::error::Unit tests failed"
+            exit 1
+          fi
+
+          # Generator parity MUST pass. It is the only lane that installs juniper-data,
+          # so it is the only place the pinned mirror is checked against the real registry
+          # -- and the lane fails rather than skips if that install ever goes missing.
+          if [[ "${{ needs.generator-parity.result }}" != "success" ]]; then
+            echo "::error::Generator parity cross-check failed"
             exit 1
           fi
 
