@@ -397,7 +397,14 @@ jobs:
           python -m pip install --upgrade "pip>=26.1.1"
           pip install -e ".[test]"
           # The whole point of this lane. juniper-data requires Python >=3.12.
-          pip install juniper-data
+          #
+          # The [api] extra is REQUIRED, not decorative: GENERATOR_REGISTRY is defined only in
+          # juniper_data/api/routes/generators.py, and juniper-data's core dependencies are just
+          # cachetools / numpy / pydantic / python-dotenv. A bare `pip install juniper-data`
+          # installs cleanly and then fails the import with "No module named 'fastapi'" -- which
+          # is precisely the skip-instead-of-fail this lane exists to prevent, so it surfaces as
+          # a red lane rather than a green one.
+          pip install "juniper-data[api]"
 
       - name: Confirm juniper-data is importable
         run: |
