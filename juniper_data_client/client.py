@@ -122,6 +122,42 @@ def _noop_request_hook(
     """
 
 
+def _render_error_detail(detail: Any) -> str:
+    """Render a server ``detail`` payload as readable text for an error message.
+
+    FastAPI answers a validation failure with a *list* of error objects, e.g.::
+
+        [{"type": "missing", "loc": ["body", "seed"], "msg": "Field required"}]
+
+    Interpolating that list into an f-string produced a Python repr -- valid
+    text, but nothing a caller could parse and nothing a human could read at a
+    glance (defect-register ``APD-DCLIENT-003``). This renders the same content
+    as ``body.seed: Field required``, while the untouched structure stays
+    available on ``exc.detail``.
+
+    Anything that is not a list of mappings is returned via ``str`` unchanged,
+    so plain-string details and unexpected shapes both survive intact.
+    """
+    if not isinstance(detail, list):
+        return str(detail)
+
+    rendered: list[str] = []
+    for item in detail:
+        if not isinstance(item, dict):
+            rendered.append(str(item))
+            continue
+        msg = item.get("msg", "")
+        loc = item.get("loc")
+        if isinstance(loc, (list, tuple)) and loc:
+            location = ".".join(str(part) for part in loc)
+            rendered.append(f"{location}: {msg}" if msg else location)
+        else:
+            rendered.append(str(msg) if msg else str(item))
+    # An empty list is a degenerate but legal payload; ``str`` keeps it visible
+    # rather than collapsing it to an empty message.
+    return "; ".join(rendered) if rendered else str(detail)
+
+
 class JuniperDataClient:
     """Client for interacting with the JuniperData REST API.
 
@@ -309,14 +345,46 @@ class JuniperDataClient:
                 # fall back to using the raw response text as the error detail.
                 error_detail = response.text
 
+            # APD-DCLIENT-003: ``error_detail`` is whatever the server sent --
+            # a str for most handlers, but a list[dict] for FastAPI's 422. It is
+            # attached to the exception UNMODIFIED, and rendered separately for
+            # the human-readable message. Interpolating the list directly
+            # produced a Python repr no caller could parse, and which lost
+            # nothing only because there was nowhere else for the structure to
+            # go. Now there is: ``exc.detail``.
+            rendered_detail = _render_error_detail(error_detail)
+
+            # The context is passed explicitly at each site rather than unpacked
+            # from a shared ``**kwargs`` dict: mypy --strict infers such a dict
+            # as ``dict[str, object]`` and cannot match it against the typed
+            # keyword-only parameters, so the dict form silently gives up the
+            # type checking on exactly the arguments being added here.
             if response.status_code == HTTP_404_NOT_FOUND:
-                outgoing_error = JuniperDataNotFoundError(f"Resource not found: {error_detail}")
+                outgoing_error = JuniperDataNotFoundError(
+                    f"Resource not found: {rendered_detail}",
+                    status_code=response.status_code,
+                    detail=error_detail,
+                    response=response,
+                )
                 raise outgoing_error
             elif response.status_code in (HTTP_400_BAD_REQUEST, HTTP_422_UNPROCESSABLE_ENTITY):
-                outgoing_error = JuniperDataValidationError(f"Validation error: {error_detail}")
+                # APD-DCLIENT-001: the status code is what separates these two.
+                # It rides on the exception now, so a caller no longer has to
+                # substring-match the message to tell them apart.
+                outgoing_error = JuniperDataValidationError(
+                    f"Validation error ({response.status_code}): {rendered_detail}",
+                    status_code=response.status_code,
+                    detail=error_detail,
+                    response=response,
+                )
                 raise outgoing_error
             else:
-                outgoing_error = JuniperDataClientError(f"Request failed ({response.status_code}): {error_detail}")
+                outgoing_error = JuniperDataClientError(
+                    f"Request failed ({response.status_code}): {rendered_detail}",
+                    status_code=response.status_code,
+                    detail=error_detail,
+                    response=response,
+                )
                 raise outgoing_error
         finally:
             duration_ms = (time.monotonic() - start) * 1000.0

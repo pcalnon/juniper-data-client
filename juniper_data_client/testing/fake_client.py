@@ -351,7 +351,7 @@ class FakeDataClient:
         """
         name = _resolve_generator_alias(name)
         if name not in _GENERATOR_SCHEMAS:
-            raise JuniperDataNotFoundError(f"Generator not found: {name}")
+            raise JuniperDataNotFoundError(f"Generator not found: {name}", status_code=404)
         return dict(_GENERATOR_SCHEMAS[name])
 
     # ------------------------------------------------------------------
@@ -396,9 +396,9 @@ class FakeDataClient:
         """
         generator = _resolve_generator_alias(generator)
         if generator not in _GENERATOR_FUNCTIONS:
-            raise JuniperDataValidationError(f"Unknown generator: {generator}")
+            raise JuniperDataValidationError(f"Unknown generator: {generator}", status_code=400)
         if ttl_seconds is not None and ttl_seconds < 1:
-            raise JuniperDataValidationError(f"ttl_seconds must be >= 1 (got {ttl_seconds})")
+            raise JuniperDataValidationError(f"ttl_seconds must be >= 1 (got {ttl_seconds})", status_code=422)
 
         gen_func = _GENERATOR_FUNCTIONS[generator]
 
@@ -548,7 +548,7 @@ class FakeDataClient:
         """
         result = self.list_versions(name)
         if result["total"] == 0:
-            raise JuniperDataNotFoundError(f"No versions found for dataset name: {name}")
+            raise JuniperDataNotFoundError(f"No versions found for dataset name: {name}", status_code=404)
         return result["versions"][-1]
 
     # ------------------------------------------------------------------
@@ -581,7 +581,7 @@ class FakeDataClient:
             JuniperDataNotFoundError: If the dataset does not exist.
         """
         if dataset_id not in self._datasets:
-            raise JuniperDataNotFoundError(f"Dataset not found: {dataset_id}")
+            raise JuniperDataNotFoundError(f"Dataset not found: {dataset_id}", status_code=404)
         return dict(self._datasets[dataset_id]["metadata"])
 
     def delete_dataset(self, dataset_id: str) -> bool:
@@ -597,7 +597,7 @@ class FakeDataClient:
             JuniperDataNotFoundError: If the dataset does not exist.
         """
         if dataset_id not in self._datasets:
-            raise JuniperDataNotFoundError(f"Dataset not found: {dataset_id}")
+            raise JuniperDataNotFoundError(f"Dataset not found: {dataset_id}", status_code=404)
         del self._datasets[dataset_id]
         return True
 
@@ -618,7 +618,7 @@ class FakeDataClient:
             JuniperDataNotFoundError: If the dataset does not exist.
         """
         if dataset_id not in self._datasets:
-            raise JuniperDataNotFoundError(f"Dataset not found: {dataset_id}")
+            raise JuniperDataNotFoundError(f"Dataset not found: {dataset_id}", status_code=404)
 
         arrays = self._datasets[dataset_id]["arrays"]
         buf = io.BytesIO()
@@ -638,7 +638,7 @@ class FakeDataClient:
             JuniperDataNotFoundError: If the dataset does not exist.
         """
         if dataset_id not in self._datasets:
-            raise JuniperDataNotFoundError(f"Dataset not found: {dataset_id}")
+            raise JuniperDataNotFoundError(f"Dataset not found: {dataset_id}", status_code=404)
 
         return dict(self._datasets[dataset_id]["arrays"])
 
@@ -662,7 +662,7 @@ class FakeDataClient:
             JuniperDataNotFoundError: If the dataset does not exist.
         """
         if dataset_id not in self._datasets:
-            raise JuniperDataNotFoundError(f"Dataset not found: {dataset_id}")
+            raise JuniperDataNotFoundError(f"Dataset not found: {dataset_id}", status_code=404)
 
         arrays = self._datasets[dataset_id]["arrays"]
         X_full = arrays["X_full"]
@@ -800,7 +800,7 @@ class FakeDataClient:
                     zf.writestr(f"{dataset_id}.npz", npz_buf.getvalue())
                     found += 1
         if found == 0:
-            raise JuniperDataNotFoundError("None of the requested datasets were found")
+            raise JuniperDataNotFoundError("None of the requested datasets were found", status_code=404)
         return buf.getvalue()
 
     # ------------------------------------------------------------------
