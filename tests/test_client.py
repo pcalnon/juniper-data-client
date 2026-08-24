@@ -53,7 +53,18 @@ class TestUrlNormalization:
         client = JuniperDataClient("  http://localhost:8100  ")
         assert client.base_url == "http://localhost:8100"
 
-    @pytest.mark.parametrize("hostless", ["", "   ", "http://", "https://", "/v1", "http:///v1"])
+    def test_normalize_uppercase_scheme_is_not_downgraded(self) -> None:
+        """Scheme matching is case-insensitive (RFC 3986): 'HTTPS://' must stay
+        https, not be re-prefixed into http://HTTPS://... — a silent TLS
+        downgrade that would send the API key over HTTP to hostname 'https'."""
+        client = JuniperDataClient("HTTPS://api.example.com:8100")
+        assert client.base_url == "https://api.example.com:8100"
+
+    def test_normalize_mixed_case_scheme(self) -> None:
+        client = JuniperDataClient("Http://localhost:8100")
+        assert client.base_url == "http://localhost:8100"
+
+    @pytest.mark.parametrize("hostless", ["", "   ", "http://", "https://", "/v1", "http:///v1", "http://user:secret@"])
     def test_normalize_hostless_url_raises_configuration_error(self, hostless: str) -> None:
         """A base URL with no host must fail at construction with the typed
         error, not opaquely on the first request (APD-DCLIENT-004).
