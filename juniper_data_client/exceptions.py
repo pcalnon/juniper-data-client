@@ -31,7 +31,7 @@ class JuniperDataClientError(Exception):
             callers that need headers or the raw body.
     """
 
-    def __init__(  # noqa: B042 — see __reduce__ below
+    def __init__(  # noqa: B042 — kwargs survive pickle via the default __reduce__; see below
         self,
         message: str = "",
         *,
@@ -41,63 +41,42 @@ class JuniperDataClientError(Exception):
     ) -> None:
         # B042 asks that an exception's ``__init__`` forward every argument to
         # ``super().__init__()`` and take no kwargs, so that pickle and copy
-        # round-trip. The concern is real and is honoured by ``__reduce__``
-        # below (pinned by ``test_context_survives_pickle_and_copy``); the
-        # remedy it suggests is not available here, because "take no kwargs" is
-        # precisely the defect this class is closing. Forwarding the extra
-        # arguments to ``super()`` instead would put them in ``args`` and make
-        # ``str(exc)`` a tuple repr, breaking every existing error message.
+        # round-trip. The concern is real but already answered by CPython:
+        # ``BaseException.__reduce__`` returns ``(cls, args, self.__dict__)``
+        # whenever the instance dict is non-empty, so the keyword-only context
+        # is restored automatically -- as long as ``cls(*args)`` stays
+        # constructible, which is why the ``super()`` call below forwards the
+        # message and nothing else. B042's own remedy is not available here:
+        # "take no kwargs" is precisely the defect this class closed
+        # (``APD-DCLIENT-001``), and forwarding the extras to ``super()``
+        # would put them in ``args``, making ``str(exc)`` a tuple repr and
+        # the pickle rebuild a ``TypeError``
+        # (``test_context_survives_pickle_and_copy`` pins the latter).
         super().__init__(message)
         self.message = message
         self.status_code = status_code
         self.detail = detail
         self.response = response
 
-    def __reduce__(self) -> tuple[type[JuniperDataClientError], tuple[str], dict[str, Any]]:
-        """Keep the added context across ``pickle`` and ``copy``.
-
-        ``BaseException.__reduce__`` returns ``(cls, self.args)``, and ``args``
-        holds only the message -- so a round-trip through pickle would rebuild
-        the exception with ``status_code=None`` and ``detail=None``. It would
-        still *look* correct, having silently dropped exactly the fields this
-        class exists to carry. That is what flake8-bugbear's B042 warns about;
-        restoring from ``__dict__`` is the fix, since the alternative it
-        suggests (no kwargs at all) is the defect being closed here.
-
-        Exceptions do cross process boundaries in this ecosystem -- a worker
-        returning a failure to its parent is the ordinary case.
-        """
-        return (self.__class__, (self.message,), self.__dict__.copy())
-
 
 class JuniperDataConnectionError(JuniperDataClientError):
     """Raised when connection to JuniperData service fails."""
-
-    pass
 
 
 class JuniperDataTimeoutError(JuniperDataClientError):
     """Raised when a request to JuniperData times out."""
 
-    pass
-
 
 class JuniperDataNotFoundError(JuniperDataClientError):
     """Raised when a requested resource is not found (404)."""
-
-    pass
 
 
 class JuniperDataValidationError(JuniperDataClientError):
     """Raised when request parameters fail validation (400/422)."""
 
-    pass
-
 
 class JuniperDataConfigurationError(JuniperDataClientError):
     """Raised when JuniperData configuration is missing or invalid."""
-
-    pass
 
 
 class JuniperDataContractError(JuniperDataClientError, ValueError):

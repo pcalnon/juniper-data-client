@@ -964,11 +964,16 @@ class TestExceptionContext:
     def test_context_survives_pickle_and_copy(self) -> None:
         """A round-trip must not silently drop the context (flake8-bugbear B042).
 
-        ``BaseException.__reduce__`` rebuilds from ``args``, which holds only
-        the message — so without an override, unpickling would hand back an
-        exception that looks correct and has lost ``status_code`` / ``detail``.
-        Exceptions cross process boundaries here whenever a worker returns a
-        failure to its parent, so this is a real path, not a theoretical one.
+        ``BaseException.__reduce__`` returns ``(cls, args, self.__dict__)``
+        whenever the instance dict is non-empty, so the keyword-only context
+        survives on the default path — but only while ``args`` stays exactly
+        the constructor's positional parameters. This test pins that
+        invariant against an ``__init__``/``args`` refactor: forwarding the
+        keyword-only extras into ``super().__init__`` (B042's own remedy)
+        puts them in ``args``, and the rebuild's ``cls(*args)`` then raises
+        ``TypeError``. Exceptions cross process boundaries here whenever a worker
+        returns a failure to its parent, so this is a real path, not a
+        theoretical one.
         """
         import copy as copy_module
 
