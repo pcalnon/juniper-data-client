@@ -43,6 +43,14 @@ __all__ = [
     "ENDPOINT_DATASETS_LATEST",
     "ENDPOINT_DATASET_BY_ID_TEMPLATE",
     "ENDPOINT_DATASET_ARTIFACT_TEMPLATE",
+    # NPZ contract discriminators (APD-DCLIENT-006). NOTE: many other module
+    # constants below (generator names, NPZ keys, parameter defaults) are
+    # still absent from this list — an unfiled finding recorded with the
+    # APD-DCLIENT-005/-006 register close, to be completed with a drift test
+    # rather than piecemeal.
+    "ContractKind",
+    "CONTRACT_KIND_TABULAR",
+    "CONTRACT_KIND_SEQUENCE",
 ]
 
 # ─── Service Configuration ───────────────────────────────────────────────────
