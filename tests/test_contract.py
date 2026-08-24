@@ -54,6 +54,18 @@ def test_sequence_with_consistent_t_and_dt():
     assert validate_npz_contract(_sequence(with_t=True)) == CONTRACT_KIND_SEQUENCE
 
 
+def test_sequence_with_t_only_returns_sequence():
+    """WS-1: a 3-D artifact needs at least one of t/dt — t alone is valid.
+
+    Requiring both would reject recurrence artifacts that store absolute time
+    without a precomputed ``dt`` channel.
+    """
+    arrays = _sequence(with_t=True)
+    for split in ("train", "test", "full"):
+        del arrays[f"dt_{split}"]
+    assert validate_npz_contract(arrays) == CONTRACT_KIND_SEQUENCE
+
+
 def test_rejects_4d_x():
     with pytest.raises(ValueError, match="2-D"):
         validate_npz_contract({"X_train": np.zeros((2, 3, 4, 5), np.float32)})
@@ -88,6 +100,15 @@ def test_inconsistent_t_and_dt_raises():
 def test_non_binary_mask_raises():
     arrays = _sequence()
     arrays["observed_mask_train"][0, 0] = 2
+    with pytest.raises(ValueError, match="binary"):
+        validate_npz_contract(arrays)
+
+
+def test_non_binary_padding_mask_raises():
+    """The mask loop must visit ``padding_mask``, not only ``observed_mask``."""
+    arrays = _sequence()
+    arrays["padding_mask_train"] = np.ones_like(arrays["observed_mask_train"])
+    arrays["padding_mask_train"][0, 0] = 2
     with pytest.raises(ValueError, match="binary"):
         validate_npz_contract(arrays)
 
@@ -173,6 +194,13 @@ def _v_non_binary_mask():
     return arrays, "binary"
 
 
+def _v_non_binary_padding_mask():
+    arrays = _sequence()
+    arrays["padding_mask_train"] = np.ones_like(arrays["observed_mask_train"])
+    arrays["padding_mask_train"][0, 0] = 2
+    return arrays, "binary"
+
+
 def _v_observed_on_padded():
     arrays = _sequence()
     padding = np.ones_like(arrays["observed_mask_train"])
@@ -193,6 +221,7 @@ def _v_observed_on_padded():
         _v_inconsistent_t_dt,
         _v_mask_wrong_shape,
         _v_non_binary_mask,
+        _v_non_binary_padding_mask,
         _v_observed_on_padded,
     ],
     ids=lambda fn: fn.__name__,

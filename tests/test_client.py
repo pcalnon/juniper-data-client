@@ -13,6 +13,7 @@ import requests
 import responses
 
 from juniper_data_client import JuniperDataClient, JuniperDataClientError, JuniperDataConfigurationError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
+from juniper_data_client.client import _render_error_detail
 
 
 class TestUrlNormalization:
@@ -64,14 +65,29 @@ class TestUrlNormalization:
         client = JuniperDataClient("Http://localhost:8100")
         assert client.base_url == "http://localhost:8100"
 
-    @pytest.mark.parametrize("hostless", ["", "   ", "http://", "https://", "/v1", "http:///v1", "http://user:secret@"])
+    @pytest.mark.parametrize(
+        "hostless",
+        [
+            "",
+            "   ",
+            "http://",
+            "https://",
+            "/v1",
+            "http:///v1",
+            "http://user:secret@",
+            # netloc is ":8200" (truthy) while hostname is None — the exact
+            # distinction that made #166 read hostname rather than netloc.
+            "http://:8200",
+        ],
+    )
     def test_normalize_hostless_url_raises_configuration_error(self, hostless: str) -> None:
         """A base URL with no host must fail at construction with the typed
         error, not opaquely on the first request (APD-DCLIENT-004).
 
         Each value normalizes to a hostless URL: the empty/whitespace forms,
-        a bare scheme, and path-only values (whose scheme-defaulted parse has
-        an empty netloc).
+        a bare scheme, path-only values (whose scheme-defaulted parse has
+        an empty netloc), and authorities whose netloc is truthy but whose
+        hostname is missing (userinfo-only, port-only).
         """
         with pytest.raises(JuniperDataConfigurationError, match="must include a host"):
             JuniperDataClient(hostless)
@@ -80,6 +96,48 @@ class TestUrlNormalization:
         """The guard raises inside the package hierarchy."""
         with pytest.raises(JuniperDataClientError):
             JuniperDataClient("http://")
+
+    def test_normalize_ipv6_host_preserves_brackets_and_port(self) -> None:
+        """IPv6 reconstruction must keep RFC 3986 brackets and the port.
+
+        Using ``hostname`` (``::1``) instead of ``netloc`` (``[::1]:8100``)
+        would produce a URL requests cannot connect to.
+        """
+        client = JuniperDataClient("http://[::1]:8100")
+        assert client.base_url == "http://[::1]:8100"
+
+    def test_normalize_uppercase_https_ipv6(self) -> None:
+        """Case-insensitive scheme matching plus IPv6 together.
+
+        The #166 TLS-downgrade bug would re-prefix this into
+        ``http://HTTPS://[::1]:443`` and send the API key to hostname ``https``.
+        """
+        client = JuniperDataClient("HTTPS://[::1]:443")
+        assert client.base_url == "https://[::1]:443"
+
+    def test_normalize_userinfo_and_host_are_preserved(self) -> None:
+        """Reconstruction uses netloc, so userinfo stays on the URL.
+
+        Dropping credentials here would silently de-auth a consumer that puts
+        basic-auth in the base URL. ``http://user:secret@`` (no host) is the
+        reject arm; this is the accept arm.
+        """
+        client = JuniperDataClient("http://user:secret@localhost:8100")
+        assert client.base_url == "http://user:secret@localhost:8100"
+
+    def test_normalize_reverse_proxy_v1_suffix_is_stripped(self) -> None:
+        """A path prefix in front of /v1 is a reverse-proxy deployment.
+
+        Only the trailing API-version suffix is removed; the prefix stays so
+        subsequent requests hit ``{prefix}/v1/...``.
+        """
+        client = JuniperDataClient("http://localhost:8100/proxy/v1")
+        assert client.base_url == "http://localhost:8100/proxy"
+
+    def test_normalize_v1_in_the_middle_of_the_path_is_kept(self) -> None:
+        """``endswith('/v1')`` must not strip a /v1 that is not the final segment."""
+        client = JuniperDataClient("http://localhost:8100/v1/extra")
+        assert client.base_url == "http://localhost:8100/v1/extra"
 
 
 class TestClientConfiguration:
@@ -1035,6 +1093,62 @@ class TestExceptionContext:
 
 
 @pytest.mark.unit
+class TestRenderErrorDetailDegenerateShapes:
+    """APD-DCLIENT-003 follow-up: unexpected 422 shapes must not crash the renderer.
+
+    Well-formed FastAPI lists are pinned in ``TestExceptionContext``. These arms
+    cover the helper's remaining branches, which every HTTP error path shares —
+    a proxy or a re-raised ``RequestValidationError.errors()`` payload can hit
+    them, and an ``AttributeError``/``TypeError`` inside ``_request`` would
+    leak out of the typed hierarchy.
+    """
+
+    def test_non_dict_list_items_are_stringified(self) -> None:
+        assert _render_error_detail(["plain", 3]) == "plain; 3"
+
+    def test_missing_loc_uses_msg(self) -> None:
+        assert _render_error_detail([{"msg": "Field required"}]) == "Field required"
+
+    def test_loc_as_tuple_joins_like_a_list(self) -> None:
+        """FastAPI's ``loc`` is a tuple on the Python object before JSON encoding."""
+        assert _render_error_detail([{"loc": ("body", "seed"), "msg": "Field required"}]) == "body.seed: Field required"
+
+    def test_empty_list_stays_visible(self) -> None:
+        # An empty list is a degenerate but legal payload; collapsing it to
+        # "" would make ``Validation error (422): `` look like a missing body.
+        assert _render_error_detail([]) == "[]"
+
+    @responses.activate
+    def test_mixed_422_list_does_not_crash_the_request_path(self) -> None:
+        """A dict + a raw string in ``detail`` still raises the typed 422.
+
+        The list stays on ``exc.detail`` unmodified; the message renders both
+        arms. This is the blast-radius pin: ``_request`` must not assume every
+        list item is a mapping with ``loc``/``msg``.
+        """
+        mixed = [
+            {"type": "missing", "loc": ["body", "seed"], "msg": "Field required"},
+            "not a dict",
+        ]
+        responses.add(
+            responses.POST,
+            "http://localhost:8100/v1/datasets",
+            json={"detail": mixed},
+            status=422,
+        )
+
+        client = JuniperDataClient()
+        with pytest.raises(JuniperDataValidationError) as exc_info:
+            client.create_dataset("spiral", {})
+
+        assert exc_info.value.detail == mixed
+        assert exc_info.value.status_code == 422
+        message = str(exc_info.value)
+        assert "body.seed: Field required" in message
+        assert "not a dict" in message
+
+
+@pytest.mark.unit
 class TestFakeClientMatchesRealExceptionContext:
     """``FakeDataClient`` is documented as a drop-in replacement, so it must
     populate the same context the real client does.
@@ -1072,3 +1186,13 @@ class TestFakeClientMatchesRealExceptionContext:
             fake.create_dataset("spiral", {}, ttl_seconds=0)
 
         assert exc_info.value.status_code == 422
+
+    def test_fake_unknown_schema_carries_404(self) -> None:
+        """``get_generator_schema`` 404 must carry status_code like the real client."""
+        from juniper_data_client.testing import FakeDataClient
+
+        fake = FakeDataClient()
+        with pytest.raises(JuniperDataNotFoundError) as exc_info:
+            fake.get_generator_schema("no-such-generator")
+
+        assert exc_info.value.status_code == 404
