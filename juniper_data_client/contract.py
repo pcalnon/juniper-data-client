@@ -10,7 +10,9 @@ per-step ``dt`` (or absolute ``t``) channel plus optional ``observed_mask`` /
 ``"sequence"`` and enforces the sequence rules: at least one of ``t`` / ``dt``;
 ``dt >= 0`` with ``dt[:, 0] == 0``; consistent ``t`` / ``dt``; binary masks of the
 right shape; and ``observed_mask`` only meaningful where ``padding_mask == 1``.
-The 2-D path is untouched and returns immediately.
+The 2-D path is untouched and returns immediately. Violations raise
+:class:`~juniper_data_client.exceptions.JuniperDataContractError`, a
+``ValueError`` subclass inside the package hierarchy (``APD-DCLIENT-002``).
 
 Reference: ``juniper-ml/notes/JUNIPER_2026-06-05_JUNIPER-RECURRENCE_RECURSE-DELTA-T-HANDLING.md`` §6.
 
@@ -36,6 +38,7 @@ from juniper_data_client.constants import (
     NPZ_KEY_X,
     NPZ_SPLITS,
 )
+from juniper_data_client.exceptions import JuniperDataContractError
 
 
 def validate_npz_contract(arrays: Dict[str, np.ndarray], *, dt_atol: float = 1e-6) -> str:
@@ -52,10 +55,13 @@ def validate_npz_contract(arrays: Dict[str, np.ndarray], *, dt_atol: float = 1e-
         ``"sequence"`` for a validated 3-D artifact.
 
     Raises:
-        ValueError: if ``X`` is neither 2-D nor 3-D, or any 3-D sequence rule is
-            violated (missing ``t`` / ``dt``; bad ``dt`` shape, sign, or
-            ``dt[:, 0]``; inconsistent ``t`` / ``dt``; a non-binary or mis-shaped
-            mask; or ``observed_mask`` set on a padded step).
+        JuniperDataContractError: if ``X`` is neither 2-D nor 3-D, or any 3-D
+            sequence rule is violated (missing ``t`` / ``dt``; bad ``dt``
+            shape, sign, or ``dt[:, 0]``; inconsistent ``t`` / ``dt``; a
+            non-binary or mis-shaped mask; or ``observed_mask`` set on a
+            padded step). The class subclasses both ``JuniperDataClientError``
+            and ``ValueError``, so call sites written against the original
+            ``Raises: ValueError`` contract are unaffected.
     """
     x_full_key = f"{NPZ_KEY_X}_full"
     x_train_key = f"{NPZ_KEY_X}_train"
@@ -63,7 +69,7 @@ def validate_npz_contract(arrays: Dict[str, np.ndarray], *, dt_atol: float = 1e-
     if x.ndim == 2:
         return CONTRACT_KIND_TABULAR
     if x.ndim != 3:
-        raise ValueError(f"X must be 2-D (tabular) or 3-D (sequence), got {x.ndim}-D")
+        raise JuniperDataContractError(f"X must be 2-D (tabular) or 3-D (sequence), got {x.ndim}-D")
 
     for split in NPZ_SPLITS:
         x_key = f"{NPZ_KEY_X}_{split}"
@@ -80,7 +86,7 @@ def _validate_sequence_split(arrays: Dict[str, np.ndarray], split: str, n_window
     has_t = t_key in arrays
     has_dt = dt_key in arrays
     if not (has_t or has_dt):
-        raise ValueError(f"{split}: a 3-D artifact needs at least one of {t_key!r} / {dt_key!r}")
+        raise JuniperDataContractError(f"{split}: a 3-D artifact needs at least one of {t_key!r} / {dt_key!r}")
     if has_dt:
         _validate_dt(arrays[dt_key], n_windows, lookback, dt_key)
     if has_t and has_dt:
@@ -91,11 +97,11 @@ def _validate_sequence_split(arrays: Dict[str, np.ndarray], split: str, n_window
 def _validate_dt(dt: np.ndarray, n_windows: int, lookback: int, dt_key: str) -> None:
     """``dt`` must be ``(W, L)``, non-negative, with a zero first column."""
     if dt.shape != (n_windows, lookback):
-        raise ValueError(f"{dt_key} shape {dt.shape} != {(n_windows, lookback)}")
+        raise JuniperDataContractError(f"{dt_key} shape {dt.shape} != {(n_windows, lookback)}")
     if np.any(dt < 0):
-        raise ValueError(f"{dt_key} has negative gaps")
+        raise JuniperDataContractError(f"{dt_key} has negative gaps")
     if n_windows and np.any(dt[:, 0] != 0):
-        raise ValueError(f"{dt_key}[:, 0] must be 0 by convention")
+        raise JuniperDataContractError(f"{dt_key}[:, 0] must be 0 by convention")
 
 
 def _validate_t_dt_consistency(t: np.ndarray, dt: np.ndarray, split: str, dt_atol: float) -> None:
@@ -103,7 +109,7 @@ def _validate_t_dt_consistency(t: np.ndarray, dt: np.ndarray, split: str, dt_ato
     recon = np.zeros_like(t)
     recon[:, 1:] = np.diff(t, axis=1)
     if not np.allclose(recon, dt, atol=dt_atol):
-        raise ValueError(f"{split}: t_ and dt_ are inconsistent")
+        raise JuniperDataContractError(f"{split}: t_ and dt_ are inconsistent")
 
 
 def _validate_masks(arrays: Dict[str, np.ndarray], split: str, n_windows: int, lookback: int) -> None:
@@ -112,9 +118,9 @@ def _validate_masks(arrays: Dict[str, np.ndarray], split: str, n_windows: int, l
         if mask_key in arrays:
             mask = arrays[mask_key]
             if mask.shape != (n_windows, lookback):
-                raise ValueError(f"{mask_key} shape {mask.shape} != {(n_windows, lookback)}")
+                raise JuniperDataContractError(f"{mask_key} shape {mask.shape} != {(n_windows, lookback)}")
             if not np.isin(mask, (0, 1)).all():
-                raise ValueError(f"{mask_key} must be binary (0/1)")
+                raise JuniperDataContractError(f"{mask_key} must be binary (0/1)")
 
     observed_key = f"{NPZ_KEY_OBSERVED_MASK}_{split}"
     padding_key = f"{NPZ_KEY_PADDING_MASK}_{split}"
@@ -122,4 +128,4 @@ def _validate_masks(arrays: Dict[str, np.ndarray], split: str, n_windows: int, l
         observed = arrays[observed_key]
         padding = arrays[padding_key]
         if np.any((padding == 0) & (observed == 1)):
-            raise ValueError(f"{split}: observed_mask=1 on a padded (padding_mask=0) step")
+            raise JuniperDataContractError(f"{split}: observed_mask=1 on a padded (padding_mask=0) step")
