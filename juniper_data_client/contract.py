@@ -20,7 +20,7 @@ Project: Juniper
 Sub-Project: juniper-data-client
 Application: JuniperDataClient
 Author: Paul Calnon
-Version: 0.4.1
+Version: 0.4.2
 License: MIT License
 """
 
@@ -37,11 +37,12 @@ from juniper_data_client.constants import (
     NPZ_KEY_T,
     NPZ_KEY_X,
     NPZ_SPLITS,
+    ContractKind,
 )
 from juniper_data_client.exceptions import JuniperDataContractError
 
 
-def validate_npz_contract(arrays: Dict[str, np.ndarray], *, dt_atol: float = 1e-6) -> str:
+def validate_npz_contract(arrays: Dict[str, np.ndarray], *, dt_atol: float = 1e-6) -> ContractKind:
     """Classify and validate a loaded NPZ artifact's contract.
 
     Args:

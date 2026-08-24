@@ -9,11 +9,11 @@ Project: Juniper
 Sub-Project: juniper-data-client
 Application: JuniperDataClient
 Author: Paul Calnon
-Version: 0.4.0
+Version: 0.4.2
 License: MIT License
 """
 
-from typing import List, Tuple
+from typing import Final, List, Literal, Tuple
 
 __all__ = [
     "DEFAULT_BASE_URL",
@@ -43,6 +43,14 @@ __all__ = [
     "ENDPOINT_DATASETS_LATEST",
     "ENDPOINT_DATASET_BY_ID_TEMPLATE",
     "ENDPOINT_DATASET_ARTIFACT_TEMPLATE",
+    # NPZ contract discriminators (APD-DCLIENT-006). NOTE: many other module
+    # constants below (generator names, NPZ keys, parameter defaults) are
+    # still absent from this list — an unfiled finding recorded with the
+    # APD-DCLIENT-005/-006 register close, to be completed with a drift test
+    # rather than piecemeal.
+    "ContractKind",
+    "CONTRACT_KIND_TABULAR",
+    "CONTRACT_KIND_SEQUENCE",
 ]
 
 # ─── Service Configuration ───────────────────────────────────────────────────
@@ -287,9 +295,13 @@ NPZ_KEY_OBSERVED_MASK: str = "observed_mask"  # 1=real, 0=imputed (sequence)
 NPZ_KEY_PADDING_MASK: str = "padding_mask"  # 1=valid, 0=structural padding (sequence)
 NPZ_KEY_SEQ_LENGTHS: str = "seq_lengths"  # valid step count per window (sequence)
 
-# Contract discriminators returned by ``validate_npz_contract``.
-CONTRACT_KIND_TABULAR: str = "tabular"
-CONTRACT_KIND_SEQUENCE: str = "sequence"
+# Contract discriminators returned by ``validate_npz_contract``. The Literal
+# lets a caller exhaustively match on the result (APD-DCLIENT-006); annotating
+# the constants with Final[ContractKind] keeps their values and the Literal's
+# members from drifting apart -- a mismatch fails type checking.
+ContractKind = Literal["tabular", "sequence"]
+CONTRACT_KIND_TABULAR: Final[ContractKind] = "tabular"
+CONTRACT_KIND_SEQUENCE: Final[ContractKind] = "sequence"
 
 # ``task_type`` values carried in dataset metadata (meta.json, not the NPZ).
 TASK_TYPE_CLASSIFICATION: str = "classification"
