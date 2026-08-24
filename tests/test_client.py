@@ -53,6 +53,23 @@ class TestUrlNormalization:
         client = JuniperDataClient("  http://localhost:8100  ")
         assert client.base_url == "http://localhost:8100"
 
+    @pytest.mark.parametrize("hostless", ["", "   ", "http://", "https://", "/v1", "http:///v1"])
+    def test_normalize_hostless_url_raises_configuration_error(self, hostless: str) -> None:
+        """A base URL with no host must fail at construction with the typed
+        error, not opaquely on the first request (APD-DCLIENT-004).
+
+        Each value normalizes to a hostless URL: the empty/whitespace forms,
+        a bare scheme, and path-only values (whose scheme-defaulted parse has
+        an empty netloc).
+        """
+        with pytest.raises(JuniperDataConfigurationError, match="must include a host"):
+            JuniperDataClient(hostless)
+
+    def test_hostless_url_error_is_catchable_as_the_base_error(self) -> None:
+        """The guard raises inside the package hierarchy."""
+        with pytest.raises(JuniperDataClientError):
+            JuniperDataClient("http://")
+
 
 class TestClientConfiguration:
     """Tests for client configuration."""

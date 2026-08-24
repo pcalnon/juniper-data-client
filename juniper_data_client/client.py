@@ -62,7 +62,7 @@ from juniper_data_client.constants import (
     SPIRAL_TRAIN_RATIO_DEFAULT,
     URL_SCHEME_PREFIXES,
 )
-from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
+from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConfigurationError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
 logger = logging.getLogger("juniper_data_client.client")
 
@@ -221,6 +221,13 @@ class JuniperDataClient:
 
         Returns:
             Normalized URL with scheme, no trailing slash, no /v1 suffix
+
+        Raises:
+            JuniperDataConfigurationError: when the URL carries no host (an
+                empty string, a bare scheme, or a path-only value) — a
+                misconfiguration that would otherwise normalize to a broken,
+                hostless URL and fail opaquely on the first request
+                (``APD-DCLIENT-004``; mirrors juniper-recurrence-client).
         """
         url = url.strip()
 
@@ -228,6 +235,8 @@ class JuniperDataClient:
             url = f"{DEFAULT_URL_SCHEME_PREFIX}{url}"
 
         parsed = urlparse(url)
+        if not parsed.netloc:
+            raise JuniperDataConfigurationError(f"base_url must include a host; got {url!r}")
         normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
         normalized = normalized.rstrip("/")
 
