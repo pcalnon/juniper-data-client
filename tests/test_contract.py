@@ -4,14 +4,20 @@ Covers the X.ndim dispatch (2-D tabular vs 3-D sequence), each sequence rule
 (missing t/dt, bad dt sign/first-column, inconsistent t/dt, non-binary or
 mis-shaped masks, observed-on-padded), and a save -> load -> validate round-trip
 on a crafted irregular-Δt artifact (the §6.4 reference consumer end to end).
+
+Also pins APD-DCLIENT-002: every violation raises ``JuniperDataContractError``
+(a ``ValueError`` inside the package hierarchy). The original
+``pytest.raises(ValueError)`` assertions are deliberately kept unchanged -- they
+are the back-compat pin that the pre-0.5 documented contract still holds.
 """
 
+import importlib
 import io
 
 import numpy as np
 import pytest
 
-from juniper_data_client import validate_npz_contract
+from juniper_data_client import JuniperDataClientError, JuniperDataContractError, validate_npz_contract
 from juniper_data_client.constants import CONTRACT_KIND_SEQUENCE, CONTRACT_KIND_TABULAR
 
 
@@ -114,3 +120,131 @@ def test_round_trip_through_npz_bytes():
     assert validate_npz_contract(loaded) == CONTRACT_KIND_SEQUENCE
     # The irregular gap (3-day weekend-style jump) survives the round-trip.
     assert loaded["dt_full"][0, 2] == 3.0
+
+
+# ---------------------------------------------------------------------------
+# APD-DCLIENT-002: violations raise JuniperDataContractError, not bare
+# ValueError. One builder per raise site in contract.py, so reverting any
+# single site back to ``raise ValueError`` fails exactly that arm.
+# ---------------------------------------------------------------------------
+
+
+def _v_x_neither_2d_nor_3d():
+    return {"X_train": np.zeros((2, 3, 4, 5), np.float32)}, "2-D"
+
+
+def _v_missing_t_and_dt():
+    return {"X_train": np.zeros((3, 4, 2), np.float32)}, "at least one"
+
+
+def _v_dt_wrong_shape():
+    arrays = _sequence()
+    arrays["dt_train"] = np.zeros((arrays["X_train"].shape[0], 99), np.float32)
+    return arrays, "dt_train shape"
+
+
+def _v_negative_dt():
+    arrays = _sequence()
+    arrays["dt_train"][0, 1] = -1.0
+    return arrays, "negative"
+
+
+def _v_nonzero_first_dt():
+    arrays = _sequence()
+    arrays["dt_train"][0, 0] = 1.0
+    return arrays, "must be 0"
+
+
+def _v_inconsistent_t_dt():
+    arrays = _sequence(with_t=True)
+    arrays["dt_train"][:, 1] = 99.0
+    return arrays, "inconsistent"
+
+
+def _v_mask_wrong_shape():
+    arrays = _sequence()
+    arrays["observed_mask_train"] = np.ones((arrays["X_train"].shape[0], 99), np.uint8)
+    return arrays, "observed_mask_train shape"
+
+
+def _v_non_binary_mask():
+    arrays = _sequence()
+    arrays["observed_mask_train"][0, 0] = 2
+    return arrays, "binary"
+
+
+def _v_observed_on_padded():
+    arrays = _sequence()
+    padding = np.ones_like(arrays["observed_mask_train"])
+    padding[0, -1] = 0
+    arrays["padding_mask_train"] = padding
+    arrays["observed_mask_train"][0, -1] = 1
+    return arrays, "padded"
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        _v_x_neither_2d_nor_3d,
+        _v_missing_t_and_dt,
+        _v_dt_wrong_shape,
+        _v_negative_dt,
+        _v_nonzero_first_dt,
+        _v_inconsistent_t_dt,
+        _v_mask_wrong_shape,
+        _v_non_binary_mask,
+        _v_observed_on_padded,
+    ],
+    ids=lambda fn: fn.__name__,
+)
+def test_each_violation_raises_the_contract_error_type(build):
+    arrays, match = build()
+    with pytest.raises(JuniperDataContractError, match=match):
+        validate_npz_contract(arrays)
+
+
+def test_contract_error_joins_hierarchy_and_stays_a_valueerror():
+    assert issubclass(JuniperDataContractError, JuniperDataClientError)
+    assert issubclass(JuniperDataContractError, ValueError)
+    # Catchable under the package base -- the point of APD-DCLIENT-002...
+    with pytest.raises(JuniperDataClientError):
+        validate_npz_contract({"X_train": np.zeros((5,), np.float32)})
+    # ...and still under ValueError, the originally documented contract.
+    with pytest.raises(ValueError):
+        validate_npz_contract({"X_train": np.zeros((5,), np.float32)})
+
+
+def test_contract_error_is_exported():
+    # importlib rather than a module-level ``import juniper_data_client``:
+    # mixing that with the ``from juniper_data_client import ...`` above trips
+    # CodeQL's py/import-and-import-from (an unresolved review thread blocks
+    # the merge while every check reads green).
+    mod = importlib.import_module("juniper_data_client")
+    assert "JuniperDataContractError" in mod.__all__
+    assert mod.JuniperDataContractError is JuniperDataContractError
+
+
+def test_contract_error_carries_no_http_context_and_survives_pickle():
+    """A contract violation is local -- no HTTP response behind it -- and the
+    subclass must round-trip through pickle/copy as itself (the base
+    ``__reduce__`` rebuilds via ``self.__class__``, not a hard-coded type).
+    """
+    import copy as copy_module
+
+    # Nothing untrusted: the payload is produced by ``pickle.dumps`` below, in
+    # this process, from the exception this test just caught. Same suppressions
+    # and reasoning as test_client.py's pickle round-trip.
+    import pickle  # nosec B403
+
+    with pytest.raises(JuniperDataContractError) as excinfo:
+        validate_npz_contract({"X_train": np.zeros((3, 4, 2), np.float32)})
+    original = excinfo.value
+    assert original.status_code is None
+    assert original.detail is None
+    assert original.response is None
+
+    round_tripped = pickle.loads(pickle.dumps(original))  # nosec B301
+    for rebuilt in (round_tripped, copy_module.copy(original), copy_module.deepcopy(original)):
+        assert type(rebuilt) is JuniperDataContractError
+        assert isinstance(rebuilt, ValueError)
+        assert str(rebuilt) == str(original)

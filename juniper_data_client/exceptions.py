@@ -98,3 +98,25 @@ class JuniperDataConfigurationError(JuniperDataClientError):
     """Raised when JuniperData configuration is missing or invalid."""
 
     pass
+
+
+class JuniperDataContractError(JuniperDataClientError, ValueError):
+    """Raised when a dataset artifact violates the NPZ data contract.
+
+    ``validate_npz_contract`` raised bare ``ValueError``, so the one error this
+    package detects *itself* was also the one escaping its own hierarchy --
+    ``except JuniperDataClientError`` did not mean "anything this client
+    raises" (defect-register ``APD-DCLIENT-002``).
+
+    Deliberately also a ``ValueError``: the validator has documented ``Raises:
+    ValueError`` since it shipped (0.4.2), and consumers pin that contract --
+    juniper-recurrence's routers catch ``(JuniperDataClientError, ValueError)``
+    and its data adapter re-documents the ``ValueError``. Dual inheritance
+    joins the hierarchy without changing what any existing ``except`` clause
+    catches.
+
+    Contract violations are detected locally, after the artifact is already
+    downloaded -- there is no HTTP failure behind them -- so ``status_code`` /
+    ``detail`` / ``response`` stay ``None``, the base-class convention for
+    locally raised errors.
+    """
