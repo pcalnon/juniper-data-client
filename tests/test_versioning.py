@@ -4,7 +4,7 @@
 # Application:   juniper_data_client
 # File Name:     test_versioning.py
 # Author:        Paul Calnon
-# Version:       0.3.2
+# Version:       0.4.2
 #
 # Date Created:  2026-04-01
 # Last Modified: 2026-04-01

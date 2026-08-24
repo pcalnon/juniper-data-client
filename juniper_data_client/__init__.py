@@ -5,6 +5,7 @@ dataset generation service, used by both JuniperCascor and juniper-canopy.
 """
 
 from juniper_data_client.client import JuniperDataClient, RequestHook
+from juniper_data_client.constants import ContractKind
 from juniper_data_client.contract import validate_npz_contract
 from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConfigurationError, JuniperDataConnectionError, JuniperDataContractError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
@@ -23,5 +24,8 @@ __all__ = [
     # METRICS-MON R4.3 / seed-13: instrumentation hook type alias
     # exported so consumers can type their hook closures.
     "RequestHook",
+    # APD-DCLIENT-006: the validate_npz_contract return Literal, exported so
+    # consumers can annotate and exhaustively match on the result.
+    "ContractKind",
     "__version__",
 ]
