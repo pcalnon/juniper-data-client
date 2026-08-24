@@ -62,7 +62,7 @@ from juniper_data_client.constants import (
     SPIRAL_TRAIN_RATIO_DEFAULT,
     URL_SCHEME_PREFIXES,
 )
-from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
+from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConfigurationError, JuniperDataConnectionError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
 logger = logging.getLogger("juniper_data_client.client")
 
@@ -221,13 +221,28 @@ class JuniperDataClient:
 
         Returns:
             Normalized URL with scheme, no trailing slash, no /v1 suffix
+
+        Raises:
+            JuniperDataConfigurationError: when the URL carries no host (an
+                empty string, a bare scheme, a path-only value, or a
+                userinfo-only authority like ``http://user:secret@``) — a
+                misconfiguration that would otherwise normalize to a broken,
+                hostless URL and fail opaquely on the first request
+                (``APD-DCLIENT-004``; mirrors juniper-recurrence-client).
         """
         url = url.strip()
 
-        if not url.startswith(URL_SCHEME_PREFIXES):
+        # Scheme matching is case-insensitive (RFC 3986 §3.1): a case-sensitive
+        # startswith would re-prefix "HTTPS://host" into "http://HTTPS://host",
+        # silently downgrading TLS and sending the API key to hostname "https".
+        if not url.lower().startswith(URL_SCHEME_PREFIXES):
             url = f"{DEFAULT_URL_SCHEME_PREFIX}{url}"
 
         parsed = urlparse(url)
+        # hostname, not netloc: netloc accepts a userinfo-only authority
+        # ("user:secret@") as truthy while hostname is None for it.
+        if not parsed.hostname:
+            raise JuniperDataConfigurationError(f"base_url must include a host; got {url!r}")
         normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
         normalized = normalized.rstrip("/")
 

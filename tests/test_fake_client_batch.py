@@ -4,7 +4,7 @@
 # Application:   juniper_data_client
 # File Name:     test_fake_client_batch.py
 # Author:        Paul Calnon
-# Version:       0.3.1
+# Version:       0.4.2
 #
 # Date Created:  2026-03-31
 # Last Modified: 2026-03-31
