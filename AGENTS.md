@@ -5,7 +5,7 @@
 **Author**: Paul Calnon
 **License**: MIT License
 **Version**: 0.4.2
-**Last Updated**: 2026-08-21
+**Last Updated**: 2026-08-24
 
 ---
 
@@ -75,7 +75,8 @@ NPZ artifacts with keys: `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `JUNIPER_DATA_API_KEY` | API key for authentication (sent as `X-API-Key` header) | None (optional) |
-| `JUNIPER_DATA_URL` | Service URL (used by consuming applications) | `http://localhost:8100` |
+| `JUNIPER_DATA_API_KEY_FILE` | Path to a file whose stripped contents are the API key (read before the plain env var; `api_key=` still wins) | None (optional) |
+| `JUNIPER_DATA_URL` | Service URL (used by consuming applications; this client does not read it) | `http://localhost:8100` |
 
 ---
 
@@ -252,11 +253,12 @@ client.download_artifact_npz(dataset_id)
 
 ```bash
 JuniperDataClientError (base)
-├── JuniperDataConnectionError   — Connection failures
-├── JuniperDataTimeoutError      — Request timeouts
-├── JuniperDataNotFoundError     — HTTP 404
-├── JuniperDataValidationError   — HTTP 400/422
-└── JuniperDataConfigurationError — Invalid client configuration
+├── JuniperDataConnectionError    — Connection failures
+├── JuniperDataTimeoutError       — Request timeouts
+├── JuniperDataNotFoundError      — HTTP 404
+├── JuniperDataValidationError    — HTTP 400/422
+├── JuniperDataConfigurationError — Invalid client configuration (incl. hostless base_url)
+└── JuniperDataContractError      — NPZ contract violation (also a ValueError)
 ```
 
 | HTTP Status | Exception |
@@ -291,17 +293,24 @@ Three constraints a refactor must not break:
   `body.seed: Field required` via `client._render_error_detail`, but the list
   itself stays on the attribute. Interpolating it into the message was the whole
   defect — the result was an unparseable Python repr.
-- **`__reduce__` must stay.** `BaseException.__reduce__` rebuilds from `args`,
-  which holds only the message, so without it a pickle/copy round-trip returns an
-  exception that looks right and has silently lost the context. That is what
-  flake8-bugbear's `B042` warns about; the `noqa` on `__init__` is paired with
-  `__reduce__`, not a dismissal.
+- **Pickle/copy uses the default `BaseException.__reduce__`.** It returns
+  `(cls, args, self.__dict__)` whenever the instance dict is non-empty, so the
+  keyword-only context survives without a custom override — as long as
+  `cls(*args)` stays constructible (message-only positional). A custom
+  `__reduce__` that rebuilt from `args` alone is the flake8-bugbear `B042`
+  failure mode. The `noqa` on `__init__` is paired with that default, not a
+  dismissal of the concern. Do not add an override that drops `__dict__`.
 
 `FakeDataClient` populates `status_code` on every error it raises, mirroring the
 real service (400 for an unknown generator, 422 for a `ttl_seconds` violation,
 404 for a missing resource). It is documented as a drop-in replacement — a double
 that raised the right type with `status_code=None` would let a consumer's test
 pass against behaviour production does not have.
+
+`JuniperDataContractError` subclasses both `JuniperDataClientError` and
+`ValueError`, so `except JuniperDataClientError` covers `validate_npz_contract`
+and existing `except ValueError` sites (juniper-recurrence routers) stay valid.
+Contract violations are local; `status_code` stays `None`.
 
 ---
 
@@ -345,28 +354,37 @@ All generators return `Dict[str, np.ndarray]` with keys `X_train`, `y_train`, `X
 - Uses `requests.Session` with `HTTPAdapter` for connection pooling
 - Max connections: 10, max pool size: 10
 - Automatic retry via `urllib3.util.Retry` on status codes 429, 500, 502, 503, 504
+- **Retried methods:** `HEAD`, `GET`, `PUT` only (`RETRY_ALLOWED_METHODS`). POST, PATCH, and DELETE are not auto-retried (XREPO-11: duplicate creates / repeated deletes).
 - Configurable retry count (default: 3) and exponential backoff factor (default: 0.5)
 
 ### URL Normalization
 
-- Auto-adds `http://` scheme if missing
-- Strips trailing slashes
-- Removes `/v1` suffix from base URL (client adds `/v1/` to all endpoint paths)
+`JuniperDataClient._normalize_url` runs at construction (`APD-DCLIENT-004`, `#166`):
+
+- Strip surrounding whitespace
+- If the URL does not **case-insensitively** start with `http://` or `https://`, prefix `http://` (a case-sensitive check would re-prefix `HTTPS://host` into `http://HTTPS://host` — silent TLS downgrade, API key sent to hostname `https`)
+- `urlparse`; empty **`hostname`** (not `netloc`) raises `JuniperDataConfigurationError` naming the value. `netloc` is truthy for userinfo-only `http://user:secret@`
+- Rebuild scheme/netloc/path, strip trailing `/`, then strip trailing `/v1` (the client adds `/v1/` to every endpoint)
+
+`FakeDataClient` stores `base_url` as-is and does not run this guard.
 
 ### API Key Handling
 
-- Accepts `api_key` constructor parameter or reads `JUNIPER_DATA_API_KEY` environment variable
+- Constructor `api_key=` wins over both environment variables
+- Else `JUNIPER_DATA_API_KEY_FILE` (path whose stripped contents are the key, e.g. `/run/secrets/juniper_data_api_keys`); unreadable or empty file falls through
+- Else `JUNIPER_DATA_API_KEY`
 - Sent as `X-API-Key` header on all requests when configured
 
 ### Constructor Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `base_url` | str | required | JuniperData service URL |
+| `base_url` | str | `http://localhost:8100` | JuniperData service URL (normalized; hostless values raise `JuniperDataConfigurationError`) |
 | `timeout` | int | 30 | Request timeout in seconds |
-| `retries` | int | 3 | Max retry attempts |
+| `retries` | int | 3 | Max retry attempts (idempotent methods only) |
 | `backoff_factor` | float | 0.5 | Exponential backoff multiplier |
-| `api_key` | str | None | API key (or use env var) |
+| `api_key` | str | None | API key (or `JUNIPER_DATA_API_KEY_FILE` / `JUNIPER_DATA_API_KEY`) |
+| `on_request` | `RequestHook` | no-op | Optional instrumentation hook; exceptions are logged and swallowed |
 
 ---
 
@@ -380,8 +398,8 @@ All numeric, string, and structural defaults used by the client and its testing 
 |----------------|----------|---------|
 | `API_KEY_*`, `API_VERSION_*` | `API_KEY_HEADER_NAME='X-API-Key'`, `API_KEY_ENV_VAR='JUNIPER_DATA_API_KEY'`, `API_VERSION_PATH_SUFFIX='/v1'` | Wire-protocol identifiers shared with the `juniper-data` server |
 | `ENDPOINT_*` | `ENDPOINT_DATASETS='/v1/datasets'`, `ENDPOINT_HEALTH='/v1/health'`, `ENDPOINT_DATASET_BY_ID_TEMPLATE` | Full HTTP paths for every server endpoint the client calls (incl. f-string templates) |
-| `DEFAULT_*` | `DEFAULT_TIMEOUT_SECONDS=30`, `DEFAULT_RETRIES=3`, `DEFAULT_BACKOFF_FACTOR=0.5` | Constructor defaults for `JuniperDataClient` |
-| `RETRY_*` | `RETRY_STATUS_CODES_DEFAULT`, `RETRY_TOTAL_DEFAULT` | Retry/backoff tuning |
+| `DEFAULT_*` | `DEFAULT_TIMEOUT=30`, `DEFAULT_RETRIES=3`, `DEFAULT_BACKOFF_FACTOR=0.5` | Constructor defaults for `JuniperDataClient` |
+| `RETRY_*` | `RETRYABLE_STATUS_CODES`, `RETRY_ALLOWED_METHODS` (`HEAD`/`GET`/`PUT`) | Retry/backoff tuning |
 | Generator parameter defaults | `SPIRAL_*`, `XOR_*`, `CIRCLES_*`, `GAUSSIAN_*`, `CHECKERBOARD_*` | Default values for the synthetic dataset generators in `testing/generators.py` |
 
 ### Alignment with `juniper-data`

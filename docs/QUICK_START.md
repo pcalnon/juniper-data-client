@@ -2,9 +2,9 @@
 
 ## Get juniper-data-client Working in 5 Minutes
 
-**Version:** 0.4.0
+**Version:** 0.4.2
 **Status:** Active
-**Last Updated:** April 8, 2026
+**Last Updated:** August 24, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -48,7 +48,8 @@ pip install -e ".[dev]"
 ```python
 from juniper_data_client import JuniperDataClient
 
-# Create client (default: localhost:8100)
+# Create client (default: localhost:8100). Hostless values such as "http://"
+# raise JuniperDataConfigurationError at construction, not on the first request.
 client = JuniperDataClient("http://localhost:8100")
 
 # Check service health
@@ -79,6 +80,11 @@ X_test = arrays["X_test"]    # (40, 2) float32
 y_test = arrays["y_test"]    # (40, 2) float32 one-hot
 
 print(f"Training: {X_train.shape}, Test: {X_test.shape}")
+
+# Optional: classify tabular vs sequence (WS-1) and enforce Δt / mask rules
+from juniper_data_client import validate_npz_contract
+
+kind = validate_npz_contract(arrays)  # "tabular" or "sequence"
 ```
 
 ### Context Manager
@@ -107,15 +113,24 @@ else:
 ```python
 from juniper_data_client import (
     JuniperDataClient,
+    JuniperDataConfigurationError,
     JuniperDataConnectionError,
-    JuniperDataNotFoundError,
     JuniperDataValidationError,
 )
 
 try:
+    client = JuniperDataClient("http://localhost:8100")
+except JuniperDataConfigurationError as e:
+    # Hostless base_url (empty string, "http://", "/v1", "http://user:secret@")
+    # status_code is None — this is raised at construction, not on the first request.
+    print(f"Bad client config: {e}")
+
+try:
     result = client.create_dataset("spiral", {"n_spirals": -1})
 except JuniperDataValidationError as e:
-    print(f"Invalid parameters: {e}")
+    # 400 and 422 share this type; e.status_code is the discriminator.
+    # FastAPI 422 keeps the list on e.detail; str(e) renders "body.seed: Field required".
+    print(f"Invalid parameters ({e.status_code}): {e}")
 except JuniperDataConnectionError as e:
     print(f"Service unreachable: {e}")
 ```
@@ -148,6 +163,6 @@ The test suite includes a `FakeDataClient` for testing consumers without a runni
 
 ---
 
-**Last Updated:** April 8, 2026
-**Version:** 0.4.0
+**Last Updated:** August 24, 2026
+**Version:** 0.4.2
 **Status:** Active

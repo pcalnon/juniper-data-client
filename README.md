@@ -50,7 +50,7 @@ The artifacts come back as a dict of `float32` `numpy` arrays, ready for `torch.
 |--------|---------|
 | `health_check()` / `is_ready()` / `wait_for_ready(...)` | Liveness / readiness probes |
 | `list_generators()` / `get_generator_schema(name)` | Discover available generators + their schemas |
-| `create_dataset(name, params, ...)` | Create a dataset from any generator |
+| `create_dataset(generator, params, ...)` | Create a dataset from any generator |
 | `create_spiral_dataset(...)` | Convenience wrapper for the spiral generator |
 | `download_artifact_npz(dataset_id)` / `download_artifact_bytes(dataset_id)` | Download as numpy arrays / raw bytes |
 | `get_dataset_metadata(id)` / `get_preview(id, n)` / `delete_dataset(id)` | Inspect / preview / delete |
