@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`create_dataset`'s `persist` parameter and everything after it are now keyword-only**, on both
+  `JuniperDataClient` and `FakeDataClient` (defect-register `APD-DCLIENT-008`). Nine
+  positional-or-keyword parameters made `create_dataset("spiral", p, False)` legal and unreadable,
+  and any future signature reordering would have silently rebound arguments at every call site.
+  Only `generator` / `params` — the universal pair — remain positional. **Breaking only for
+  positional calls beyond the second argument**: an ecosystem-wide AST census at change time
+  (223 calls across the 7 consuming repos) found zero such calls — every caller already passes
+  `persist` onward by keyword. A new signature-pin test holds the real and fake clients to the
+  identical convention so neither can drift.
+
 ### Fixed
 
 - **A hostless `base_url` now fails at construction with `JuniperDataConfigurationError`** (defect-register `APD-DCLIENT-004`). `_normalize_url` normalised the scheme, trailing slash and `/v1` suffix but never checked that a host survived the parse, so an empty string, a bare `http://`, or a path-only value produced a broken hostless URL that failed opaquely on the *first request* deep inside `requests`. The guard is the one juniper-recurrence-client already carries (the reference implementation in the register's §2.3 sibling table): a missing host after scheme-defaulting raises the typed configuration error naming the offending value. Valid forms — schemeless hosts, trailing slashes, `/v1` suffixes, surrounding whitespace — are untouched, pinned by the pre-existing normalization tests. **Hardened after a confirmed review finding on the cascor-client port of this same guard**: scheme matching is **case-insensitive** (RFC 3986 — a case-sensitive check re-prefixed `HTTPS://host` into `http://HTTPS://host`, a silent TLS downgrade sending the API key over HTTP to hostname `https`), and the guard reads `parsed.hostname` rather than `netloc` (netloc accepts a userinfo-only `http://user:secret@` as truthy; hostname is `None` for it).
