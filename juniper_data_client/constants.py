@@ -15,9 +15,16 @@ License: MIT License
 
 from typing import Final, List, Literal, Tuple
 
+# Complete export surface: every public module-level constant, in file order,
+# grouped by the section headers below. Completeness is enforced by
+# tests/test_constants_all_drift.py — a new constant that is not added here
+# fails that gate (and, on any module WITH __all__, CodeQL flags touched
+# non-exported globals as py/unused-global-variable, blocking the merge).
 __all__ = [
+    # Service Configuration
     "DEFAULT_BASE_URL",
     "FAKE_BASE_URL",
+    # HTTP Configuration
     "DEFAULT_TIMEOUT",
     "DEFAULT_RETRIES",
     "DEFAULT_BACKOFF_FACTOR",
@@ -28,12 +35,15 @@ __all__ = [
     "URL_SCHEME_PREFIXES",
     "DEFAULT_URL_SCHEME_PREFIX",
     "API_VERSION_PATH_SUFFIX",
+    # Readiness Polling
     "DEFAULT_READY_TIMEOUT",
     "DEFAULT_READY_POLL_INTERVAL",
     "HEALTH_READY_STATUS",
+    # Authentication
     "API_KEY_HEADER_NAME",
     "API_KEY_ENV_VAR",
     "API_KEY_FILE_ENV_VAR",
+    # REST Endpoints
     "ENDPOINT_HEALTH",
     "ENDPOINT_HEALTH_READY",
     "ENDPOINT_GENERATORS",
@@ -43,14 +53,132 @@ __all__ = [
     "ENDPOINT_DATASETS_LATEST",
     "ENDPOINT_DATASET_BY_ID_TEMPLATE",
     "ENDPOINT_DATASET_ARTIFACT_TEMPLATE",
-    # NPZ contract discriminators (APD-DCLIENT-006). NOTE: many other module
-    # constants below (generator names, NPZ keys, parameter defaults) are
-    # still absent from this list — an unfiled finding recorded with the
-    # APD-DCLIENT-005/-006 register close, to be completed with a drift test
-    # rather than piecemeal.
+    "ENDPOINT_DATASET_PREVIEW_TEMPLATE",
+    "ENDPOINT_BATCH_CREATE",
+    "ENDPOINT_BATCH_DELETE",
+    "ENDPOINT_BATCH_TAGS",
+    "ENDPOINT_BATCH_EXPORT",
+    # HTTP Status Codes
+    "HTTP_400_BAD_REQUEST",
+    "HTTP_404_NOT_FOUND",
+    "HTTP_422_UNPROCESSABLE_ENTITY",
+    # Listing Defaults
+    "DEFAULT_LIST_LIMIT",
+    "DEFAULT_LIST_OFFSET",
+    # Preview Defaults
+    "DEFAULT_PREVIEW_N",
+    "MAX_PREVIEW_N",
+    # Data Type Contract
+    "DEFAULT_ARRAY_DTYPE",
+    # Generator Names
+    "GENERATOR_SPIRAL",
+    "GENERATOR_XOR",
+    "GENERATOR_CIRCLE",
+    "GENERATOR_CIRCLE_LEGACY",
+    "GENERATOR_MOON",
+    "GENERATOR_GAUSSIAN",
+    "GENERATOR_CHECKERBOARD",
+    "GENERATOR_CSV_IMPORT",
+    "GENERATOR_MNIST",
+    "GENERATOR_ARC_AGI",
+    "GENERATOR_EQUITIES",
+    "GENERATOR_EQUITIES_SEQ",
+    "GENERATOR_MULTI_SINE",
+    "GENERATOR_MACKEY_GLASS",
+    "GENERATOR_AR_P",
+    "GENERATOR_IRREGULAR_SINE",
+    "GENERATOR_DELAY_PRODUCT",
+    # Generator Catalog Metadata
+    "GENERATOR_VERSION",
+    "GENERATOR_DESCRIPTION_SPIRAL",
+    "GENERATOR_DESCRIPTION_XOR",
+    "GENERATOR_DESCRIPTION_CIRCLE",
+    "GENERATOR_DESCRIPTION_MOON",
+    "GENERATOR_DESCRIPTION_GAUSSIAN",
+    "GENERATOR_DESCRIPTION_CHECKERBOARD",
+    "GENERATOR_DESCRIPTION_CSV_IMPORT",
+    "GENERATOR_DESCRIPTION_MNIST",
+    "GENERATOR_DESCRIPTION_ARC_AGI",
+    "GENERATOR_DESCRIPTION_EQUITIES",
+    "GENERATOR_DESCRIPTION_EQUITIES_SEQ",
+    "GENERATOR_DESCRIPTION_MULTI_SINE",
+    "GENERATOR_DESCRIPTION_MACKEY_GLASS",
+    "GENERATOR_DESCRIPTION_AR_P",
+    "GENERATOR_DESCRIPTION_IRREGULAR_SINE",
+    "GENERATOR_DESCRIPTION_DELAY_PRODUCT",
+    # Generator Defaults — Spiral
+    "SPIRAL_N_SPIRALS_DEFAULT",
+    "SPIRAL_N_POINTS_PER_SPIRAL_DEFAULT",
+    "SPIRAL_NOISE_DEFAULT",
+    "SPIRAL_ALGORITHM_DEFAULT",
+    "SPIRAL_TRAIN_RATIO_DEFAULT",
+    "SPIRAL_N_SPIRALS_MIN",
+    "SPIRAL_N_POINTS_PER_SPIRAL_MIN",
+    "SPIRAL_NOISE_MIN",
+    "SPIRAL_TRAIN_RATIO_MIN",
+    "SPIRAL_TRAIN_RATIO_MAX",
+    "SPIRAL_ALGORITHM_MODERN",
+    "SPIRAL_ALGORITHM_LEGACY",
+    "SPIRAL_ALGORITHMS",
+    "SPIRAL_RADIUS_SCALE",
+    "SPIRAL_ANGLE_TURNS",
+    # Generator Defaults — XOR
+    "XOR_N_POINTS_DEFAULT",
+    "XOR_NOISE_DEFAULT",
+    "XOR_TRAIN_RATIO_DEFAULT",
+    "XOR_N_POINTS_MIN",
+    "XOR_NOISE_MIN",
+    "XOR_TRAIN_RATIO_MIN",
+    "XOR_TRAIN_RATIO_MAX",
+    "XOR_CORNERS",
+    "XOR_CORNER_LABELS",
+    "XOR_NUM_CORNERS",
+    "XOR_NUM_CLASSES",
+    # Generator Defaults — Circle
+    "CIRCLE_N_POINTS_DEFAULT",
+    "CIRCLE_NOISE_DEFAULT",
+    "CIRCLE_FACTOR_DEFAULT",
+    "CIRCLE_TRAIN_RATIO_DEFAULT",
+    "CIRCLE_N_POINTS_MIN",
+    "CIRCLE_NOISE_MIN",
+    "CIRCLE_FACTOR_MIN",
+    "CIRCLE_FACTOR_MAX",
+    "CIRCLE_TRAIN_RATIO_MIN",
+    "CIRCLE_TRAIN_RATIO_MAX",
+    "CIRCLE_NUM_CLASSES",
+    # Generator Defaults — Moon
+    "MOON_N_POINTS_DEFAULT",
+    "MOON_NOISE_DEFAULT",
+    "MOON_TRAIN_RATIO_DEFAULT",
+    "MOON_N_POINTS_MIN",
+    "MOON_NOISE_MIN",
+    "MOON_TRAIN_RATIO_MIN",
+    "MOON_TRAIN_RATIO_MAX",
+    "MOON_NUM_CLASSES",
+    "MOON_LOWER_X_OFFSET",
+    "MOON_LOWER_Y_OFFSET",
+    "MOON_LOWER_Y_SHIFT",
+    # Fake Service Identity
+    "FAKE_SERVICE_STATUS",
+    "FAKE_SERVICE_NAME",
+    "FAKE_SERVICE_VERSION",
+    "FAKE_SERVICE_UPTIME_SECONDS",
+    # NPZ Artifact Contract (WS-1 / juniper-data#168)
+    "NPZ_SPLITS",
+    "NPZ_KEY_X",
+    "NPZ_KEY_Y",
+    "NPZ_KEY_Y_REG",
+    "NPZ_KEY_T",
+    "NPZ_KEY_DT",
+    "NPZ_KEY_TARGET_DT",
+    "NPZ_KEY_OBSERVED_MASK",
+    "NPZ_KEY_PADDING_MASK",
+    "NPZ_KEY_SEQ_LENGTHS",
     "ContractKind",
     "CONTRACT_KIND_TABULAR",
     "CONTRACT_KIND_SEQUENCE",
+    "TASK_TYPE_CLASSIFICATION",
+    "TASK_TYPE_REGRESSION",
 ]
 
 # ─── Service Configuration ───────────────────────────────────────────────────
