@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`constants.__all__` is complete — all 141 public module constants exported, up from 30** (the
+  unfiled finding recorded with the `APD-DCLIENT-005`/`-006` register close). The partial list
+  silently narrowed `from juniper_data_client.constants import *`, and on a module WITH
+  `__all__`, CodeQL's `py/unused-global-variable` fires on any touched non-exported name —
+  data-client#164 sat green-but-blocked on exactly that, which is why this is one pass rather
+  than piecemeal. The list is regenerated in file order, grouped by the module's own section
+  headers, and a new drift gate (`tests/test_constants_all_drift.py`) pins set-equality in both
+  directions (no missing export, no phantom export), no duplicates, and runtime resolvability.
+
 - **`create_dataset`'s `persist` parameter and everything after it are now keyword-only**, on both
   `JuniperDataClient` and `FakeDataClient` (defect-register `APD-DCLIENT-008`). Nine
   positional-or-keyword parameters made `create_dataset("spiral", p, False)` legal and unreadable,
