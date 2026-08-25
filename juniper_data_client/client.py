@@ -496,6 +496,7 @@ class JuniperDataClient:
         self,
         generator: str,
         params: Dict[str, Any],
+        *,
         persist: bool = True,
         name: Optional[str] = None,
         description: Optional[str] = None,
@@ -505,6 +506,12 @@ class JuniperDataClient:
         ttl_seconds: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Create a new dataset via the JuniperData API.
+
+        ``persist`` and everything after it are keyword-only (defect-register
+        ``APD-DCLIENT-008``): with nine positional-or-keyword parameters the
+        call ``create_dataset("spiral", p, False)`` was legal and unreadable,
+        and any signature reordering would silently rebind arguments. Only
+        ``generator`` and ``params`` — the universal pair — stay positional.
 
         If a dataset with the same parameters already exists, the existing
         dataset is returned (caching behavior).
