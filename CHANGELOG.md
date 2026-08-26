@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Retry backoff is jittered — `backoff_jitter` is passed to urllib3's `Retry`** (defect-register
+  `APD-ECO-002`). Without it, every client instance that tripped the same transient outage retried on
+  an *identical* schedule, so a service that was already failing took a synchronised herd on each
+  backoff step. urllib3 applies jitter as an **absolute additive term**
+  (`backoff_value += random.random() * backoff_jitter`), not a proportional one, so the new
+  `DEFAULT_BACKOFF_JITTER` is matched to `DEFAULT_BACKOFF_FACTOR` (0.5) — a full window of spread on
+  the first retry, the step that carries the most callers. **No dependency floor moves**:
+  `backoff_jitter` arrived in urllib3 2.0.0 and this package already pins `urllib3>=2.0.0`. Retry
+  counts, allowed methods and the status forcelist are untouched, so retry *behaviour* is unchanged —
+  only its timing is decorrelated. `tests/test_retry_policy.py` pins the constant's presence, its
+  positivity (a `0.0` would silently restore the herd while leaving the call site looking correct),
+  and — the decisive arm — that 200 sampled backoffs actually differ.
+
 - **`constants.__all__` is complete — all 141 public module constants exported, up from 30** (the
   unfiled finding recorded with the `APD-DCLIENT-005`/`-006` register close). The partial list
   silently narrowed `from juniper_data_client.constants import *`, and on a module WITH

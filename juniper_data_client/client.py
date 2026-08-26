@@ -23,6 +23,7 @@ from juniper_data_client.constants import (
     API_KEY_HEADER_NAME,
     API_VERSION_PATH_SUFFIX,
     DEFAULT_BACKOFF_FACTOR,
+    DEFAULT_BACKOFF_JITTER,
     DEFAULT_BASE_URL,
     DEFAULT_LIST_LIMIT,
     DEFAULT_LIST_OFFSET,
@@ -262,6 +263,8 @@ class JuniperDataClient:
         retry_strategy = Retry(
             total=self.retries,
             backoff_factor=self.backoff_factor,
+            # APD-ECO-002: decorrelate retry schedules across client instances.
+            backoff_jitter=DEFAULT_BACKOFF_JITTER,
             status_forcelist=RETRYABLE_STATUS_CODES,
             allowed_methods=RETRY_ALLOWED_METHODS,
         )
