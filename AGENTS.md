@@ -81,55 +81,7 @@ NPZ artifacts with keys: `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_
 
 ## Directory Structure
 
-```bash
-juniper-data-client/
-├── juniper_data_client/           # Main Python package
-│   ├── __init__.py                # Public API exports, __version__
-│   ├── client.py                  # JuniperDataClient class (all API methods)
-│   ├── exceptions.py              # Exception hierarchy
-│   ├── py.typed                   # PEP 561 type hint marker
-│   └── testing/                   # Testing utilities submodule (ships with package)
-│       ├── __init__.py            # Exports FakeDataClient + generators
-│       ├── fake_client.py         # Drop-in mock client for consumer testing
-│       └── generators.py          # Synthetic dataset generators (spiral, xor, circle, moon)
-├── tests/                         # Test suite (pytest)
-│   ├── conftest.py                # Shared fixtures (FakeDataClient)
-│   ├── test_client.py             # JuniperDataClient unit tests (HTTP mocking)
-│   ├── test_fake_client.py        # FakeDataClient tests
-│   ├── test_fake_client_batch.py  # Batch operation tests
-│   ├── test_performance.py        # Performance benchmarks
-│   └── test_versioning.py         # Dataset versioning tests
-├── docs/                          # User documentation
-│   ├── DOCUMENTATION_OVERVIEW.md  # Navigation index
-│   ├── QUICK_START.md             # 5-minute getting started guide
-│   ├── REFERENCE.md               # Complete API reference
-│   └── DEVELOPER_CHEATSHEET.md    # Developer quick-reference card
-├── notes/                         # Developer notes and procedures
-│   ├── history/                   # Archived procedures
-│   └── pull_requests/             # PR tracking notes
-├── scripts/                       # Utility scripts
-│   ├── check_doc_links.py         # Documentation link validator
-│   └── generate_dep_docs.sh       # Dependency docs generator
-├── util/                          # Shell utilities
-│   └── run_all_tests.bash         # Full test runner script
-├── .github/                       # GitHub configuration
-│   ├── workflows/ci.yml           # CI pipeline (multi-version tests, security, quality gate)
-│   ├── workflows/publish.yml      # PyPI publishing (trusted publishing + attestations)
-│   ├── workflows/security-scan.yml# Weekly security scanning (Bandit + pip-audit)
-│   ├── CODEOWNERS                 # Code ownership routing
-│   └── dependabot.yml             # Automated dependency updates
-├── AGENTS.md                      # This file
-├── CLAUDE.md -> AGENTS.md         # Symlink for Claude Code
-├── CHANGELOG.md                   # Version history
-├── README.md                      # PyPI landing page / project overview
-├── pyproject.toml                 # Package metadata, dependencies, tool config
-├── .pre-commit-config.yaml        # Pre-commit hooks (20+ hooks)
-├── .sops.yaml                     # SOPS encryption config for secrets
-├── .env.example                   # Environment variables template
-└── LICENSE                        # MIT License
-```
-
----
+The annotated source tree, with the purpose of every package and key module. Moved to [`docs/REFERENCE.md` § Directory Structure Reference](docs/REFERENCE.md#directory-structure-reference) — read it when working on this area.
 
 ## Script Placement
 
@@ -143,110 +95,11 @@ This is an ecosystem-wide rule restated in the parent `Juniper/AGENTS.md` "Cross
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
-| `juniper_data_client/client.py` | `JuniperDataClient` class — all HTTP API methods |
-| `juniper_data_client/constants.py` | Module-level constants (endpoint paths, header names, defaults, generator parameter defaults) |
-| `juniper_data_client/exceptions.py` | Exception hierarchy (5 specific exception types) |
-| `juniper_data_client/__init__.py` | Public API exports and `__version__` |
-| `juniper_data_client/py.typed` | PEP 561 marker enabling type checking for consumers |
-| `juniper_data_client/testing/fake_client.py` | `FakeDataClient` — drop-in mock for consumer tests |
-| `juniper_data_client/testing/generators.py` | Synthetic dataset generators (spiral, xor, circle, moon) |
-| `tests/` | Test suite — unit, integration, performance, versioning |
-| `docs/REFERENCE.md` | Complete API reference documentation |
-| `docs/QUICK_START.md` | Getting started guide |
-| `pyproject.toml` | Package config, dependencies, tool settings |
-| `.pre-commit-config.yaml` | Pre-commit hooks configuration |
-| `.github/workflows/ci.yml` | CI pipeline (Python 3.12/3.13/3.14, coverage, security) |
-| `.github/workflows/publish.yml` | PyPI publishing with trusted publishing (OIDC) |
-| `CHANGELOG.md` | Version history and release notes |
-| `scripts/check_doc_links.py` | Documentation link validator |
-| `util/run_all_tests.bash` | Full test runner script |
-
----
+Per-file reference for the modules a change is most likely to touch. Moved to [`docs/REFERENCE.md` § Key Files Reference](docs/REFERENCE.md#key-files-reference) — read it when working on this area.
 
 ## Public API
 
-### Quick Start
-
-```python
-from juniper_data_client import JuniperDataClient
-
-client = JuniperDataClient("http://localhost:8100")
-client.health_check()
-client.create_spiral_dataset(n_spirals=2, n_points_per_spiral=100, noise=0.1, seed=42)
-client.download_artifact_npz(dataset_id)
-```
-
-### Method Reference
-
-#### Health & Readiness
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `health_check()` | GET /v1/health | Returns service health status |
-| `is_ready()` | GET /v1/health/ready | Returns boolean readiness |
-| `wait_for_ready(timeout, poll_interval)` | GET /v1/health/ready | Polls until service is ready |
-
-#### Generator Discovery
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `list_generators()` | GET /v1/generators | Lists available dataset generators |
-| `get_generator_schema(name)` | GET /v1/generators/{name}/schema | Returns parameter schema for a generator |
-
-#### Dataset Creation
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `create_dataset(generator, params, ...)` | POST /v1/datasets | Creates a dataset with any generator |
-| `create_spiral_dataset(**kwargs)` | POST /v1/datasets | Convenience method for spiral datasets |
-
-#### Dataset Versioning
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `list_versions(name)` | GET /v1/datasets/versions | Lists all versions of a named dataset |
-| `get_latest(name)` | GET /v1/datasets/latest | Gets the latest version metadata |
-
-#### Dataset Operations
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `list_datasets(limit, offset)` | GET /v1/datasets | Lists dataset IDs with pagination |
-| `get_dataset_metadata(dataset_id)` | GET /v1/datasets/{id} | Returns dataset metadata |
-| `delete_dataset(dataset_id)` | DELETE /v1/datasets/{id} | Deletes a dataset |
-
-#### Artifact Download
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `download_artifact_bytes(dataset_id)` | GET /v1/datasets/{id}/artifact | Returns raw NPZ bytes |
-| `download_artifact_npz(dataset_id)` | GET /v1/datasets/{id}/artifact | Returns numpy dict with array keys |
-
-#### Previews
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `get_preview(dataset_id, n)` | GET /v1/datasets/{id}/preview | Returns JSON preview of first n rows |
-
-#### Batch Operations
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `batch_delete(dataset_ids)` | POST /v1/datasets/batch-delete | Deletes multiple datasets |
-| `batch_create(datasets)` | POST /v1/datasets/batch-create | Creates multiple datasets |
-| `batch_update_tags(dataset_ids, add_tags, remove_tags)` | PATCH /v1/datasets/batch-tags | Updates tags on multiple datasets |
-| `batch_export(dataset_ids)` | POST /v1/datasets/batch-export | Exports multiple datasets as ZIP |
-
-#### Resource Management
-
-| Pattern | Description |
-|---------|-------------|
-| `client.close()` | Closes the HTTP session |
-| `with JuniperDataClient(...) as client:` | Context manager (auto-closes) |
-
----
+Every public entry point, its signature, and the exception it raises. Moved to [`docs/REFERENCE.md` § Public API Reference](docs/REFERENCE.md#public-api-reference) — read it when working on this area.
 
 ## Exception Hierarchy
 
@@ -340,127 +193,15 @@ All generators return `Dict[str, np.ndarray]` with keys `X_train`, `y_train`, `X
 
 ## Architecture & Design Patterns
 
-### Connection Management
-
-- Uses `requests.Session` with `HTTPAdapter` for connection pooling
-- Max connections: 10, max pool size: 10
-- Automatic retry via `urllib3.util.Retry` on status codes 429, 500, 502, 503, 504
-- Configurable retry count (default: 3) and exponential backoff factor (default: 0.5)
-
-### URL Normalization
-
-- Auto-adds `http://` scheme if missing
-- Strips trailing slashes
-- Removes `/v1` suffix from base URL (client adds `/v1/` to all endpoint paths)
-
-### API Key Handling
-
-- Accepts `api_key` constructor parameter or reads `JUNIPER_DATA_API_KEY` environment variable
-- Sent as `X-API-Key` header on all requests when configured
-
-### Constructor Parameters
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `base_url` | str | required | JuniperData service URL |
-| `timeout` | int | 30 | Request timeout in seconds |
-| `retries` | int | 3 | Max retry attempts |
-| `backoff_factor` | float | 0.5 | Exponential backoff multiplier |
-| `api_key` | str | None | API key (or use env var) |
-
----
+The client's layering, retry/backoff design, and the patterns a new method must follow. Moved to [`docs/REFERENCE.md` § Architecture and Design Patterns Reference](docs/REFERENCE.md#architecture-and-design-patterns-reference) — read it when working on this area.
 
 ## Constants
 
-All numeric, string, and structural defaults used by the client and its testing utilities are centralized in `juniper_data_client/constants.py`. Application code (`client.py`, `testing/fake_client.py`, `testing/generators.py`) imports from this module rather than embedding inline literals.
-
-### Categories
-
-| Prefix / Group | Examples | Purpose |
-|----------------|----------|---------|
-| `API_KEY_*`, `API_VERSION_*` | `API_KEY_HEADER_NAME='X-API-Key'`, `API_KEY_ENV_VAR='JUNIPER_DATA_API_KEY'`, `API_VERSION_PATH_SUFFIX='/v1'` | Wire-protocol identifiers shared with the `juniper-data` server |
-| `ENDPOINT_*` | `ENDPOINT_DATASETS='/v1/datasets'`, `ENDPOINT_HEALTH='/v1/health'`, `ENDPOINT_DATASET_BY_ID_TEMPLATE` | Full HTTP paths for every server endpoint the client calls (incl. f-string templates) |
-| `DEFAULT_*` | `DEFAULT_TIMEOUT_SECONDS=30`, `DEFAULT_RETRIES=3`, `DEFAULT_BACKOFF_FACTOR=0.5` | Constructor defaults for `JuniperDataClient` |
-| `RETRY_*` | `RETRY_STATUS_CODES_DEFAULT`, `RETRY_TOTAL_DEFAULT` | Retry/backoff tuning |
-| Generator parameter defaults | `SPIRAL_*`, `XOR_*`, `CIRCLES_*`, `GAUSSIAN_*`, `CHECKERBOARD_*` | Default values for the synthetic dataset generators in `testing/generators.py` |
-
-### Alignment with `juniper-data`
-
-`API_KEY_HEADER_NAME` and `API_VERSION_PATH_SUFFIX` are bit-identical to the corresponding values on the server side (`juniper_data.api.constants.HEADER_X_API_KEY` and the `/v1` router prefix). All `ENDPOINT_*` paths equal `<server router prefix> + <relative route>`.
-
-### Modifying
-
-When adding a new HTTP endpoint or constructor parameter:
-
-1. Add the constant to `constants.py` first (with a docstring noting any cross-repo coupling)
-2. Reference it from `client.py` (or `fake_client.py` / `generators.py`)
-3. Never embed the literal value inline in application code
-
----
+Every exported constant, its default, and the failure each one guards against. Moved to [`docs/REFERENCE.md` § Constants Reference](docs/REFERENCE.md#constants-reference) — read it when working on this area.
 
 ## CI/CD
 
-### GitHub Actions Workflows
-
-| Workflow | Trigger | Description |
-|----------|---------|-------------|
-| `ci.yml` | Push/PR to main | Pre-commit, tests (Python 3.12/3.13/3.14 matrix), coverage (80% min), doc link validation, security scanning (Gitleaks, Bandit, pip-audit), build verification, quality gate |
-| `publish.yml` | GitHub Release | Publishes to TestPyPI (with install verification) then PyPI; trusted publishing (OIDC); build attestations |
-| `security-scan.yml` | Weekly schedule | Bandit code scanning + pip-audit dependency vulnerability check |
-| `sequence-safety.yml` | PR to main/develop | **Advisory** per-PR compositional-loss net (rollout Wave 2): AST symbol-loss screen (scope `juniper_data_client/**/*.py` + `tests/**/*.py`) + docs deletion-magnitude screen, from the published `juniper-ci-tools` console scripts. Standalone, never a required check; the `allow-symbol-loss` / `docs-rewrite` labels demote a FAIL to WARN-only |
-| `main-verify.yml` | Push to main | **Advisory** post-merge, bypass-proof run of the same two screens over the catch-up base .. merge tip (per-SHA, no-cancel so every merge is verified during a storm); screens-only (no regression battery); files one stable-title tracking issue per red streak on failure |
-
-### Pre-Commit Hooks
-
-20+ hooks enforcing: Black formatting (line-length=512), isort import sorting, Flake8 linting (strict for source, relaxed for tests), MyPy type checking, Bandit security scanning, markdownlint, shellcheck, yamllint, SOPS `.env` file blocking.
-
-### Tool Configuration (pyproject.toml)
-
-| Tool | Key Setting |
-|------|-------------|
-| Black | line-length=512, target py312/py313 |
-| isort | profile=black, line-length=512 |
-| MyPy | strict=true, python_version=3.12 |
-| Coverage | fail_under=80, branch=true |
-| Pytest | timeout=30s, markers: unit, integration, performance |
-
----
-
-### PR base-branch guard (required check)
-
-`.github/workflows/pr-base-branch-guard.yml` fails any PR whose base branch is not the
-default branch. Its job name -- **`Guard PR base branch`** -- is a **required status check**
-in this repo's ruleset, so renaming the job or deleting the file makes `main` unmergeable
-until the context is un-required first.
-
-**What it protects against.** A PR based on another feature branch can squash-merge into
-that branch, stranding its content off `main` behind a green **MERGED** badge. It has
-happened three times in this ecosystem (`juniper-recurrence#7`/`#8`, `juniper-canopy#365`).
-
-**Why it matters more than it looks.** Both rulesets here are scoped to `~DEFAULT_BRANCH`, so
-a PR whose base is a feature branch is governed by **no ruleset at all** -- it has zero
-required status checks and merges clean with nothing having run:
-
-```bash
-gh api repos/pcalnon/<repo>/rules/branches/feature%2Fanything --jq length   # -> 0
-gh api repos/pcalnon/<repo>/rules/branches/main               --jq length   # -> 9
-```
-
-This workflow carries no `branches:` filter, so it is the **only** check that runs on such a
-PR. It cannot block the merge there -- no ruleset applies -- but it turns a silent merge into
-a visibly red one.
-
-**If it fails.** Re-open the work against the default branch. The house practice is
-**close and re-open** a fresh PR titled `[retarget #NNN]`. Retargeting in place is *not*
-sufficient on its own: every `ci*.yml` here uses the default `pull_request` types
-`[opened, synchronize, reopened]`, which exclude `edited`, so a retarget re-runs this guard
-and nothing else -- the PR stays blocked on its other required contexts until a push or a
-close/re-open.
-
-**`stacked-pr` label.** Silences this guard for a deliberate stack. It does **not** make the
-PR mergeable into `main`, and it does **not** re-land the stack -- do that separately.
-
-Rollout and rationale: [juniper-ml#434](https://github.com/pcalnon/juniper-ml/issues/434).
+Per-workflow reference for `.github/workflows/`, including the contract each job must not break. Moved to [`docs/REFERENCE.md` § CI/CD Reference](docs/REFERENCE.md#cicd-reference) — read it when working on this area.
 
 ## Worktree Procedures (Mandatory — Task Isolation)
 
