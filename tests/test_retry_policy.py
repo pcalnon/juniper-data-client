@@ -72,6 +72,7 @@ class TestClientRetryConfiguration:
         finally:
             client.close()
 
+
 class TestRetryBackoffJitter:
     """APD-ECO-002: retry schedules must be decorrelated across client instances.
 
