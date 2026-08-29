@@ -53,6 +53,22 @@ class TestClientRetryConfiguration:
         finally:
             client.close()
 
+    def test_https_retry_adapter_reflects_constants(self) -> None:
+        """``URL_SCHEME_PREFIXES`` mounts the same Retry adapter on ``https://``.
+
+        An HTTP-only mount would leave TLS consumers on the default adapter
+        with no 429/5xx retry — the opposite of XREPO-11's intent for GETs.
+        """
+        with JuniperDataClient(base_url="https://api.example.com:8100", retries=2) as client:
+            adapter = client.session.get_adapter("https://api.example.com:8100/")
+            status_forcelist = set(adapter.max_retries.status_forcelist or [])
+            allowed_methods = set(adapter.max_retries.allowed_methods or [])
+            assert status_forcelist == set(constants.RETRYABLE_STATUS_CODES)
+            assert allowed_methods == set(constants.RETRY_ALLOWED_METHODS)
+            assert "POST" not in allowed_methods
+            assert "DELETE" not in allowed_methods
+            assert "PATCH" not in allowed_methods
+
 
 class TestRetryBackoffJitter:
     """APD-ECO-002: retry schedules must be decorrelated across client instances.
