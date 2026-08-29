@@ -362,6 +362,7 @@ class FakeDataClient:
         self,
         generator: str,
         params: Dict[str, Any],
+        *,
         persist: bool = True,
         name: Optional[str] = None,
         description: Optional[str] = None,
@@ -371,6 +372,10 @@ class FakeDataClient:
         ttl_seconds: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Create a synthetic dataset using an in-memory generator.
+
+        Mirrors the real client's keyword-only boundary after ``params``
+        (``APD-DCLIENT-008``) — a consumer test that calls the fake
+        positionally must fail exactly as it would against the real client.
 
         Args:
             generator: Name of the generator (``"spiral"``, ``"xor"``, ``"circles"``, ``"moon"``).

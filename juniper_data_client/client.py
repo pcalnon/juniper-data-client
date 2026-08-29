@@ -23,6 +23,7 @@ from juniper_data_client.constants import (
     API_KEY_HEADER_NAME,
     API_VERSION_PATH_SUFFIX,
     DEFAULT_BACKOFF_FACTOR,
+    DEFAULT_BACKOFF_JITTER,
     DEFAULT_BASE_URL,
     DEFAULT_LIST_LIMIT,
     DEFAULT_LIST_OFFSET,
@@ -262,6 +263,8 @@ class JuniperDataClient:
         retry_strategy = Retry(
             total=self.retries,
             backoff_factor=self.backoff_factor,
+            # APD-ECO-002: decorrelate retry schedules across client instances.
+            backoff_jitter=DEFAULT_BACKOFF_JITTER,
             status_forcelist=RETRYABLE_STATUS_CODES,
             allowed_methods=RETRY_ALLOWED_METHODS,
         )
@@ -496,6 +499,7 @@ class JuniperDataClient:
         self,
         generator: str,
         params: Dict[str, Any],
+        *,
         persist: bool = True,
         name: Optional[str] = None,
         description: Optional[str] = None,
@@ -505,6 +509,12 @@ class JuniperDataClient:
         ttl_seconds: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Create a new dataset via the JuniperData API.
+
+        ``persist`` and everything after it are keyword-only (defect-register
+        ``APD-DCLIENT-008``): with nine positional-or-keyword parameters the
+        call ``create_dataset("spiral", p, False)`` was legal and unreadable,
+        and any signature reordering would silently rebind arguments. Only
+        ``generator`` and ``params`` — the universal pair — stay positional.
 
         If a dataset with the same parameters already exists, the existing
         dataset is returned (caching behavior).

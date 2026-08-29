@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Retry backoff is jittered — `backoff_jitter` is passed to urllib3's `Retry`** (defect-register
+  `APD-ECO-002`). Without it, every client instance that tripped the same transient outage retried on
+  an *identical* schedule, so a service that was already failing took a synchronised herd on each
+  backoff step. urllib3 applies jitter as an **absolute additive term**
+  (`backoff_value += random.random() * backoff_jitter`), not a proportional one, so the new
+  `DEFAULT_BACKOFF_JITTER` is matched to `DEFAULT_BACKOFF_FACTOR` (0.5) — a full window of spread on
+  the first retry, the step that carries the most callers. **No dependency floor moves**:
+  `backoff_jitter` arrived in urllib3 2.0.0 and this package already pins `urllib3>=2.0.0`. Retry
+  counts, allowed methods and the status forcelist are untouched, so retry *behaviour* is unchanged —
+  only its timing is decorrelated. `tests/test_retry_policy.py` pins the constant's presence, its
+  positivity (a `0.0` would silently restore the herd while leaving the call site looking correct),
+  and — the decisive arm — that 200 sampled backoffs actually differ.
+
+- **`constants.__all__` is complete — all 141 public module constants exported, up from 30** (the
+  unfiled finding recorded with the `APD-DCLIENT-005`/`-006` register close). The partial list
+  silently narrowed `from juniper_data_client.constants import *`, and on a module WITH
+  `__all__`, CodeQL's `py/unused-global-variable` fires on any touched non-exported name —
+  data-client#164 sat green-but-blocked on exactly that, which is why this is one pass rather
+  than piecemeal. The list is regenerated in file order, grouped by the module's own section
+  headers, and a new drift gate (`tests/test_constants_all_drift.py`) pins set-equality in both
+  directions (no missing export, no phantom export), no duplicates, and runtime resolvability.
+
+- **`create_dataset`'s `persist` parameter and everything after it are now keyword-only**, on both
+  `JuniperDataClient` and `FakeDataClient` (defect-register `APD-DCLIENT-008`). Nine
+  positional-or-keyword parameters made `create_dataset("spiral", p, False)` legal and unreadable,
+  and any future signature reordering would have silently rebound arguments at every call site.
+  Only `generator` / `params` — the universal pair — remain positional. **Breaking only for
+  positional calls beyond the second argument**: an ecosystem-wide AST census at change time
+  (223 calls across the 7 consuming repos) found zero such calls — every caller already passes
+  `persist` onward by keyword. A new signature-pin test holds the real and fake clients to the
+  identical convention so neither can drift.
+
 ### Fixed
 
 - **A hostless `base_url` now fails at construction with `JuniperDataConfigurationError`** (defect-register `APD-DCLIENT-004`). `_normalize_url` normalised the scheme, trailing slash and `/v1` suffix but never checked that a host survived the parse, so an empty string, a bare `http://`, or a path-only value produced a broken hostless URL that failed opaquely on the *first request* deep inside `requests`. The guard is the one juniper-recurrence-client already carries (the reference implementation in the register's §2.3 sibling table): a missing host after scheme-defaulting raises the typed configuration error naming the offending value. Valid forms — schemeless hosts, trailing slashes, `/v1` suffixes, surrounding whitespace — are untouched, pinned by the pre-existing normalization tests. **Hardened after a confirmed review finding on the cascor-client port of this same guard**: scheme matching is **case-insensitive** (RFC 3986 — a case-sensitive check re-prefixed `HTTPS://host` into `http://HTTPS://host`, a silent TLS downgrade sending the API key over HTTP to hostname `https`), and the guard reads `parsed.hostname` rather than `netloc` (netloc accepts a userinfo-only `http://user:secret@` as truthy; hostname is `None` for it).
