@@ -2,9 +2,9 @@
 
 ## Navigation Guide to juniper-data-client Documentation
 
-**Version:** 0.3.1
+**Version:** 0.4.2
 **Status:** Active
-**Last Updated:** March 3, 2026
+**Last Updated:** August 24, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -40,10 +40,10 @@
 
 | File                          | Lines | Type       | Purpose                                              |
 |-------------------------------|-------|------------|------------------------------------------------------|
-| **DOCUMENTATION_OVERVIEW.md** | ~120  | Overview   | This file -- navigation index                        |
-| **QUICK_START.md**            | ~130  | Tutorial   | Install, configure, and use in 5 minutes             |
-| **REFERENCE.md**              | ~260  | Reference  | Complete API, configuration, and exception reference |
-| **DEVELOPER_CHEATSHEET.md**   | ~100  | Cheatsheet | Quick-reference card for common development tasks    |
+| **DOCUMENTATION_OVERVIEW.md** | ~110  | Overview   | This file -- navigation index                        |
+| **QUICK_START.md**            | ~160  | Tutorial   | Install, configure, and use in 5 minutes             |
+| **REFERENCE.md**              | ~440  | Reference  | Complete API, configuration, and exception reference |
+| **DEVELOPER_CHEATSHEET.md**   | ~180  | Cheatsheet | Quick-reference card for common development tasks    |
 
 ### Root Directory
 
@@ -73,9 +73,9 @@ juniper-ml ──meta-package──> juniper-data-client
 
 ### Compatibility
 
-| juniper-data-client | juniper-data | juniper-cascor | juniper-canopy |
-|---------------------|--------------|----------------|----------------|
-| 0.3.x               | 0.4.x        | 0.3.x          | 0.2.x          |
+This client is **0.4.x** (`pip install juniper-data-client`; pin `>=0.4.2,<0.5.0` or via `juniper-ml[data]`). Server and consumer versions live in those repos — do not copy a stale matrix from this index.
+
+Construction-time URL guards, exception context (`status_code` / `detail` / `response`), `JuniperDataContractError`, and idempotent-only retries are documented in [REFERENCE.md](REFERENCE.md).
 
 ---
 
@@ -97,8 +97,8 @@ juniper-ml ──meta-package──> juniper-data-client
 
 ---
 
-**Last Updated:** March 3, 2026
-**Version:** 0.3.1
+**Last Updated:** August 24, 2026
+**Version:** 0.4.2
 **Maintainer:** Paul Calnon
 
 > See the [Juniper Ecosystem Guide](../CLAUDE.md) for the full project map and dependency graph.

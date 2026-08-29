@@ -2,9 +2,9 @@
 
 ## juniper-data-client Technical Reference
 
-**Version:** 0.4.0
+**Version:** 0.4.2
 **Status:** Active
-**Last Updated:** April 8, 2026
+**Last Updated:** August 24, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -27,6 +27,7 @@
 - [Constants Reference](#constants-reference)
 - [CI/CD Reference](#cicd-reference)
 - [NPZ Artifact Schema](#npz-artifact-schema)
+- [`validate_npz_contract`](#validate_npz_contract)
 - [HTTP Behavior](#http-behavior)
 - [Environment Variables](#environment-variables)
 - [Test Markers and Commands](#test-markers-and-commands)
@@ -45,11 +46,12 @@ from juniper_data_client import JuniperDataClient
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `base_url` | `str` | `"http://localhost:8100"` | JuniperData service URL |
+| `base_url` | `str` | `"http://localhost:8100"` | JuniperData service URL. Normalized at construction (see [URL Normalization](#url-normalization)). Hostless values raise `JuniperDataConfigurationError` immediately. |
 | `timeout` | `int` | `30` | Request timeout in seconds |
-| `retries` | `int` | `3` | Number of retry attempts for failed requests |
+| `retries` | `int` | `3` | Number of retry attempts for failed requests (idempotent methods only; see [Retry Strategy](#retry-strategy)) |
 | `backoff_factor` | `float` | `0.5` | Backoff multiplier between retries |
-| `api_key` | `Optional[str]` | `None` | API key; falls back to `JUNIPER_DATA_API_KEY` env var |
+| `api_key` | `Optional[str]` | `None` | API key. Wins over both env vars. If omitted, the client reads `JUNIPER_DATA_API_KEY_FILE` then `JUNIPER_DATA_API_KEY`. |
+| `on_request` | `Optional[RequestHook]` | no-op | Instrumentation hook `(method, url, status, duration_ms, error)` fired once per HTTP call. Hook exceptions are logged at WARNING and never crash the request. |
 
 ### Context Manager
 
@@ -83,7 +85,7 @@ with JuniperDataClient("http://localhost:8100") as client:
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `create_dataset(generator, params, persist=True, name=None, description=None, created_by=None, parent_dataset_id=None)` | `Dict` | Create dataset; returns `dataset_id`, `generator`, `meta`, `artifact_url` |
+| `create_dataset(generator, params, persist=True, name=None, description=None, created_by=None, parent_dataset_id=None, tags=None, ttl_seconds=None)` | `Dict` | Create dataset; returns `dataset_id`, `generator`, `meta`, `artifact_url` |
 | `list_datasets(limit=100, offset=0)` | `List[str]` | List dataset ID strings with pagination |
 | `get_dataset_metadata(dataset_id)` | `Dict` | Metadata for a specific dataset |
 | `delete_dataset(dataset_id)` | `bool` | Delete a dataset; returns `True` on success |
@@ -96,6 +98,8 @@ with JuniperDataClient("http://localhost:8100") as client:
 | `description` | `Optional[str]` | `None` | Human-readable description of the dataset. |
 | `created_by` | `Optional[str]` | `None` | Identifier for the creator (user or system). |
 | `parent_dataset_id` | `Optional[str]` | `None` | ID of the parent dataset this was derived from. |
+| `tags` | `Optional[List[str]]` | `None` | Tags forwarded to the server's `CreateDatasetRequest.tags`. Searchable via `list_datasets` filters. |
+| `ttl_seconds` | `Optional[int]` | `None` | Time-to-live in seconds. Must be `>= 1` when provided; the fake client raises `JuniperDataValidationError` with `status_code=422` for a non-positive value, matching FastAPI/pydantic. |
 
 ### Artifact Download
 
@@ -215,11 +219,12 @@ Get the latest version of a named dataset.
 
 ```
 JuniperDataClientError (base)
-├── JuniperDataConnectionError    # Connection to service failed
-├── JuniperDataTimeoutError       # Request timed out
-├── JuniperDataNotFoundError      # 404 - Resource not found
-├── JuniperDataValidationError    # 400/422 - Invalid parameters
-└── JuniperDataConfigurationError # Missing or invalid config
+├── JuniperDataConnectionError     # Connection to service failed
+├── JuniperDataTimeoutError        # Request timed out
+├── JuniperDataNotFoundError       # 404 - Resource not found
+├── JuniperDataValidationError     # 400/422 - Invalid parameters
+├── JuniperDataConfigurationError  # Missing or invalid config
+└── JuniperDataContractError       # NPZ contract violation (also a ValueError)
 ```
 
 ### Import
@@ -229,11 +234,33 @@ from juniper_data_client import (
     JuniperDataClientError,
     JuniperDataConfigurationError,
     JuniperDataConnectionError,
+    JuniperDataContractError,
     JuniperDataNotFoundError,
     JuniperDataTimeoutError,
     JuniperDataValidationError,
 )
 ```
+
+### Exception context
+
+Every exception in the hierarchy carries four attributes set by the base `__init__`. The extra parameters are **keyword-only**, so `raise JuniperDataNotFoundError("missing")` still works.
+
+| Attribute | Meaning |
+|-----------|---------|
+| `message` | Human-readable summary; also what `str(exc)` returns. |
+| `status_code` | HTTP status of the originating response, or `None` when the error was raised without one (configuration, connection, timeout, retry-exhausted, contract). |
+| `detail` | The server's `detail` payload **exactly as decoded** — a `str` for most handlers, a `list[dict]` for FastAPI's 422. Never stringified. |
+| `response` | The originating `requests.Response`, when there was one. |
+
+`status_code` is the **only** thing separating a 400 from a 422 — both raise `JuniperDataValidationError`.
+
+A FastAPI 422 `detail` list stays on `exc.detail` unmodified. The message renders it as `body.seed: Field required` via `_render_error_detail`. Interpolating the list into the message produced an unparseable Python repr.
+
+Locally raised errors (`JuniperDataConfigurationError`, connection, timeout, `JuniperDataContractError`) leave `status_code` / `detail` / `response` as `None`.
+
+`FakeDataClient` populates `status_code` on every error it raises (400 unknown generator, 422 `ttl_seconds` violation, 404 missing resource). A double that raised the right type with `status_code=None` would let a consumer test pass against behaviour production does not have.
+
+`JuniperDataContractError` subclasses **both** `JuniperDataClientError` and `ValueError`, so `except ValueError` still catches `validate_npz_contract` failures (the original documented contract).
 
 ### HTTP Status Code Mapping
 
@@ -245,6 +272,8 @@ from juniper_data_client import (
 | Connection failure | `JuniperDataConnectionError` |
 | Timeout | `JuniperDataTimeoutError` |
 | Other 4xx/5xx | `JuniperDataClientError` |
+| Hostless `base_url` | `JuniperDataConfigurationError` (`status_code=None`) |
+| NPZ contract violation | `JuniperDataContractError` (`status_code=None`) |
 
 ---
 
@@ -252,7 +281,7 @@ from juniper_data_client import (
 
 ### FakeDataClient
 
-Drop-in replacement for `JuniperDataClient` that generates synthetic datasets in-memory. No HTTP calls are made.
+Drop-in replacement for `JuniperDataClient` that generates synthetic datasets in-memory. No HTTP calls are made. `base_url` is stored as-is and is **not** run through `_normalize_url`, so a hostless fake URL does not raise. Errors it raises do populate `status_code` (400 unknown generator, 422 non-positive `ttl_seconds`, 404 missing resource).
 
 ```python
 from juniper_data_client.testing import FakeDataClient
@@ -288,10 +317,28 @@ Available via `juniper_data_client.testing`:
 
 ### URL Normalization
 
-The client automatically normalizes the `base_url`:
-- Adds `http://` scheme if missing
-- Strips trailing slashes
-- Strips trailing `/v1` suffix
+`JuniperDataClient.__init__` calls `_normalize_url` before any request (`APD-DCLIENT-004`, hardened in `#166`):
+
+1. `url.strip()` — surrounding whitespace is ignored.
+2. If the stripped URL does not **case-insensitively** start with `http://` or `https://`, prefix `http://`. Scheme matching follows RFC 3986 §3.1: a case-sensitive `startswith` would re-prefix `HTTPS://host` into `http://HTTPS://host` — a silent TLS downgrade that sends the API key over HTTP to hostname `https`.
+3. `urlparse`; empty **`hostname`** (not `netloc`) raises `JuniperDataConfigurationError(f"base_url must include a host; got {url!r}")` with `status_code=None`. `netloc` is truthy for a userinfo-only `http://user:secret@` while `hostname` is `None`.
+4. Rebuild `f"{parsed.scheme}://{parsed.netloc}{parsed.path}"` (scheme stored lowercase by `urlparse`) then `rstrip("/")`.
+5. Strip a trailing `/v1` — the client adds `/v1/` to every endpoint path.
+
+Valid forms that still construct: schemeless hosts (`localhost:8100`), trailing slashes, `/v1` suffixes, mixed-case `Http://`, uppercase `HTTPS://`.
+
+Hostless shapes that fail at construction: `""`, `"   "`, `"http://"`, `"https://"`, `"/v1"`, `"http:///v1"`, `"http://user:secret@"`.
+
+**Deliberate gap:** `FakeDataClient` stores `base_url` as-is and never contacts it. A hostless fake URL does **not** raise. Do not use the fake to pin construction-time URL guards.
+
+### URL Normalization (examples)
+
+```python
+JuniperDataClient("localhost:8100").base_url          # http://localhost:8100
+JuniperDataClient("HTTPS://api.example.com:8100").base_url  # https://api.example.com:8100
+JuniperDataClient("http://localhost:8100/v1/").base_url     # http://localhost:8100
+JuniperDataClient("http://")  # raises JuniperDataConfigurationError
+```
 
 ---
 
@@ -475,17 +522,25 @@ Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it
 - Uses `requests.Session` with `HTTPAdapter` for connection pooling
 - Max connections: 10, max pool size: 10
 - Automatic retry via `urllib3.util.Retry` on status codes 429, 500, 502, 503, 504
+- **Retried methods:** `HEAD`, `GET`, `PUT` only (`RETRY_ALLOWED_METHODS`). POST, PATCH, and DELETE are not auto-retried (XREPO-11: duplicate creates / repeated deletes).
 - Configurable retry count (default: 3) and exponential backoff factor (default: 0.5)
 
 ### URL Normalization
 
-- Auto-adds `http://` scheme if missing
-- Strips trailing slashes
-- Removes `/v1` suffix from base URL (client adds `/v1/` to all endpoint paths)
+`JuniperDataClient._normalize_url` runs at construction (`APD-DCLIENT-004`, `#166`):
+
+- Strip surrounding whitespace
+- If the URL does not **case-insensitively** start with `http://` or `https://`, prefix `http://` (a case-sensitive check would re-prefix `HTTPS://host` into `http://HTTPS://host` — silent TLS downgrade, API key sent to hostname `https`)
+- `urlparse`; empty **`hostname`** (not `netloc`) raises `JuniperDataConfigurationError` naming the value. `netloc` is truthy for userinfo-only `http://user:secret@`
+- Rebuild scheme/netloc/path, strip trailing `/`, then strip trailing `/v1` (the client adds `/v1/` to every endpoint)
+
+`FakeDataClient` stores `base_url` as-is and does not run this guard.
 
 ### API Key Handling
 
-- Accepts `api_key` constructor parameter or reads `JUNIPER_DATA_API_KEY` environment variable
+- Constructor `api_key=` wins over both environment variables
+- Else `JUNIPER_DATA_API_KEY_FILE` (path whose stripped contents are the key, e.g. `/run/secrets/juniper_data_api_keys`); unreadable or empty file falls through
+- Else `JUNIPER_DATA_API_KEY`
 - Sent as `X-API-Key` header on all requests when configured
 
 ### Constructor Parameters
@@ -617,6 +672,25 @@ All arrays are `float32` dtype.
 
 Default split: 80% training, 20% test (controlled by `train_ratio`).
 
+### `validate_npz_contract`
+
+Public helper that classifies a loaded artifact and enforces the WS-1 sequence rules.
+
+```python
+from juniper_data_client import validate_npz_contract, ContractKind
+
+kind: ContractKind = validate_npz_contract(arrays)  # "tabular" or "sequence"
+```
+
+| Return | Meaning |
+|--------|---------|
+| `"tabular"` | 2-D `X` (legacy path; no further checks). |
+| `"sequence"` | 3-D `X` `(W, L, F)` with irregular-Δt keys; `dt >= 0`, `dt[:, 0] == 0`, optional binary masks, consistent `t` / `dt`. |
+
+**Raises:** `JuniperDataContractError` (also a `ValueError`) when `X` is neither 2-D nor 3-D, or any 3-D rule fails. Contract violations are detected locally after download, so `status_code` stays `None`. The return type is `ContractKind` (`Literal["tabular", "sequence"]`); `CONTRACT_KIND_TABULAR` / `CONTRACT_KIND_SEQUENCE` are `Final[ContractKind]`.
+
+Optional `dt_atol` (default `1e-6`) is the absolute tolerance for the `t` / `dt` consistency check.
+
 ---
 
 ## HTTP Behavior
@@ -624,13 +698,17 @@ Default split: 80% training, 20% test (controlled by `train_ratio`).
 ### Retry Strategy
 
 - **Retried status codes:** 429, 500, 502, 503, 504
-- **Retried methods:** HEAD, GET, POST, DELETE
+- **Retried methods:** `HEAD`, `GET`, `PUT` only (`RETRY_ALLOWED_METHODS`). POST, PATCH, and DELETE are **not** auto-retried — a transient 5xx after the server had already applied the mutation used to duplicate dataset creation or repeat deletes (XREPO-11). Callers that need retry for mutations must layer their own idempotency (for example a client-supplied dataset `name` so POST collapses via server-side dedupe).
 - **Backoff:** Exponential with configurable factor (default 0.5s)
 - **Connection pooling:** 10 connections, 10 max pool size
 
 ### Authentication
 
-If `api_key` is provided (or `JUNIPER_DATA_API_KEY` is set), the client sends an `X-API-Key` header with every request.
+If `api_key` is provided, it is sent as `X-API-Key` on every request. Otherwise the client reads `JUNIPER_DATA_API_KEY_FILE` (a path whose stripped contents are the key, e.g. `/run/secrets/juniper_data_api_keys`) and then `JUNIPER_DATA_API_KEY`. An unreadable or empty `_FILE` falls through to the plain env var.
+
+### Request correlation
+
+When `juniper-observability` is installed and the calling thread has a non-empty `request_id_var`, `_request()` copies it into outbound `X-Request-ID`. `ImportError` and `LookupError` silently no-op. Caller-supplied `X-Request-ID` headers always win. Standalone install: `pip install juniper-data-client[observability]`.
 
 ### API Prefix
 
@@ -642,8 +720,9 @@ All requests target `/v1/` endpoints on the configured `base_url`.
 
 | Variable | Purpose | Used By |
 |----------|---------|---------|
-| `JUNIPER_DATA_API_KEY` | API key for authentication (fallback if not passed to constructor) | `JuniperDataClient.__init__` |
-| `JUNIPER_DATA_URL` | Service URL used by consuming applications (not read by client directly) | juniper-cascor, juniper-canopy |
+| `JUNIPER_DATA_API_KEY` | API key for authentication (fallback if `api_key=` and `_FILE` are unset) | `JuniperDataClient.__init__` |
+| `JUNIPER_DATA_API_KEY_FILE` | Path to a file whose stripped contents are the API key (Docker-secret indirection; wins over the plain env var, loses to `api_key=`) | `_resolve_api_key_from_env` |
+| `JUNIPER_DATA_URL` | Service URL used by consuming applications (not read by this client) | juniper-cascor, juniper-canopy |
 
 ---
 
@@ -661,8 +740,10 @@ pytest tests/ --cov=juniper_data_client --cov-report=term-missing --cov-fail-und
 
 | File | Purpose |
 |------|---------|
-| `tests/test_client.py` | Unit tests for `JuniperDataClient` |
+| `tests/test_client.py` | Unit tests for `JuniperDataClient` (includes URL normalization) |
 | `tests/test_fake_client.py` | Tests for `FakeDataClient` testing utility |
+| `tests/test_contract.py` | `validate_npz_contract` raise sites |
+| `tests/test_retry_policy.py` | `RETRY_ALLOWED_METHODS` / `RETRYABLE_STATUS_CODES` |
 | `tests/conftest.py` | Shared fixtures |
 
 ### Quality Checks
@@ -676,6 +757,6 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** April 8, 2026
-**Version:** 0.4.0
+**Last Updated:** August 24, 2026
+**Version:** 0.4.2
 **Maintainer:** Paul Calnon

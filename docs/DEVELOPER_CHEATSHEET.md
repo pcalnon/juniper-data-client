@@ -1,7 +1,7 @@
 # Developer Cheatsheet — juniper-data-client
 
-**Version**: 1.0.0
-**Date**: 2026-03-15
+**Version**: 1.0.1
+**Date**: 2026-08-24
 **Project**: juniper-data-client
 
 ---
@@ -16,7 +16,7 @@
 | `pytest tests/ -m unit -v`                                                              | Run unit tests only         |
 | `pytest tests/ --cov=juniper_data_client --cov-report=term-missing --cov-fail-under=80` | Run with coverage           |
 | `mypy juniper_data_client --strict`                                                     | Type checking (strict)      |
-| `flake8 juniper_data_client --max-line-length=120`                                      | Linting                     |
+| `flake8 juniper_data_client --max-line-length=512` | Linting                     |
 | `black --check --diff juniper_data_client`                                              | Format check                |
 | `isort --check-only --diff juniper_data_client`                                         | Import order check          |
 
@@ -29,8 +29,14 @@
 ```python
 from juniper_data_client import JuniperDataClient
 
-# Basic
+# Basic (default base_url is http://localhost:8100)
 client = JuniperDataClient("http://localhost:8100")
+
+# Hostless values fail at construction — not on the first request
+# JuniperDataClient("http://")  # JuniperDataConfigurationError
+
+# HTTPS:// is preserved (scheme matching is case-insensitive)
+# client = JuniperDataClient("HTTPS://api.example.com:8100")
 
 # With options
 client = JuniperDataClient(
@@ -38,7 +44,7 @@ client = JuniperDataClient(
     timeout=30,
     retries=3,
     backoff_factor=0.5,
-    api_key="my-key",  # or set JUNIPER_DATA_API_KEY env var
+    api_key="my-key",  # wins over JUNIPER_DATA_API_KEY_FILE and JUNIPER_DATA_API_KEY
 )
 
 # Context manager (auto-closes session)
@@ -102,12 +108,15 @@ Synthetic generators available via `juniper_data_client.testing`: `generate_spir
 
 ```bash
 JuniperDataClientError (base)
-+-- JuniperDataConnectionError    # Connection failed
-+-- JuniperDataTimeoutError       # Request timed out
-+-- JuniperDataNotFoundError      # 404
-+-- JuniperDataValidationError    # 400/422
-+-- JuniperDataConfigurationError # Missing/invalid config
++-- JuniperDataConnectionError     # Connection failed
++-- JuniperDataTimeoutError        # Request timed out
++-- JuniperDataNotFoundError       # 404
++-- JuniperDataValidationError     # 400/422 — use exc.status_code to tell them apart
++-- JuniperDataConfigurationError  # Missing/invalid config (hostless base_url)
++-- JuniperDataContractError       # NPZ contract (also ValueError)
 ```
+
+Every exception carries `message`, `status_code`, `detail`, and `response`. Keyword-only extras; locally raised errors have `status_code=None`. FastAPI 422 keeps the list on `exc.detail`; the message renders `body.seed: Field required`.
 
 ### Error Recovery Pattern
 
@@ -137,8 +146,9 @@ except JuniperDataTimeoutError:
 
 | Variable               | Default                 | Description                                             |
 |------------------------|-------------------------|---------------------------------------------------------|
-| `JUNIPER_DATA_API_KEY` | *(unset)*               | API key fallback (if not passed to constructor)         |
-| `JUNIPER_DATA_URL`     | `http://localhost:8100` | Used by consuming apps (juniper-cascor, juniper-canopy) |
+| `JUNIPER_DATA_API_KEY`      | *(unset)*               | API key fallback if `api_key=` and `_FILE` are unset        |
+| `JUNIPER_DATA_API_KEY_FILE` | *(unset)*               | Path to a file whose stripped contents are the API key      |
+| `JUNIPER_DATA_URL`          | `http://localhost:8100` | Used by consuming apps (juniper-cascor, juniper-canopy)     |
 
 ---
 
@@ -146,11 +156,14 @@ except JuniperDataTimeoutError:
 
 | Symptom                                | Cause                      | Fix                                                             |
 |----------------------------------------|----------------------------|-----------------------------------------------------------------|
+| `JuniperDataConfigurationError` at init | Hostless `base_url`        | Pass a host (`localhost:8100` or `https://api.example.com`). Empty string, `http://`, `/v1`, and `http://user:secret@` all fail here. |
 | `JuniperDataConnectionError`           | Service not running        | Start juniper-data: `make up` in juniper-deploy or run natively |
-| `JuniperDataValidationError` on create | Invalid generator params   | Check `client.get_generator_schema(name)` for required params   |
+| `JuniperDataValidationError` on create | Invalid generator params   | Check `client.get_generator_schema(name)`; use `exc.status_code` (400 vs 422) and `exc.detail` |
 | `JuniperDataNotFoundError` on download | Dataset ID expired/invalid | Re-create the dataset; artifacts may have been cleaned          |
+| `JuniperDataContractError` after download | Sequence NPZ failed Δt/mask rules | Call `validate_npz_contract(arrays)` and inspect `str(exc)`     |
+| Duplicate datasets after a 5xx POST    | Mutations are not auto-retried | Expected: only HEAD/GET/PUT retry. Use a dataset `name` for server-side dedupe. |
 | NPZ arrays have wrong shape            | Generator params mismatch  | Verify `n_points`, `train_ratio` params                         |
-| Auth failures (401/403)                | Missing or wrong API key   | Set `JUNIPER_DATA_API_KEY` or pass `api_key=` to constructor    |
+| Auth failures (401/403)                | Missing or wrong API key   | Pass `api_key=`, or set `JUNIPER_DATA_API_KEY_FILE` / `JUNIPER_DATA_API_KEY` |
 
 ---
 
