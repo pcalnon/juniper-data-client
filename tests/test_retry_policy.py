@@ -59,8 +59,7 @@ class TestClientRetryConfiguration:
         An HTTP-only mount would leave TLS consumers on the default adapter
         with no 429/5xx retry — the opposite of XREPO-11's intent for GETs.
         """
-        client = JuniperDataClient(base_url="https://api.example.com:8100", retries=2)
-        try:
+        with JuniperDataClient(base_url="https://api.example.com:8100", retries=2) as client:
             adapter = client.session.get_adapter("https://api.example.com:8100/")
             status_forcelist = set(adapter.max_retries.status_forcelist or [])
             allowed_methods = set(adapter.max_retries.allowed_methods or [])
@@ -69,8 +68,6 @@ class TestClientRetryConfiguration:
             assert "POST" not in allowed_methods
             assert "DELETE" not in allowed_methods
             assert "PATCH" not in allowed_methods
-        finally:
-            client.close()
 
 
 class TestRetryBackoffJitter:
