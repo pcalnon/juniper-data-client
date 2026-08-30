@@ -5,9 +5,30 @@
 **Author**: Paul Calnon
 **License**: MIT License
 **Version**: 0.4.2
-**Last Updated**: 2026-08-28
+**Last Updated**: 2026-08-30
 
 ---
+
+## Hazards (resident — do not relocate)
+
+Directives whose **non-application destroys work**. Everything else in this file may be demoted to
+`docs/REFERENCE.md` under the memory budget; these may not, because a pointer only helps an agent
+that already knows to look. Adding a new hazard here is legitimate — ratchet space out of a
+reference section in the same PR rather than waiving the budget gate.
+
+- **The `JuniperDataError` constructor contract must not be broken.** Three constraints, each of
+  which fails silently rather than loudly: the extra parameters are **keyword-only**, so making any
+  of them positional breaks every downstream caller; **`detail` keeps the server's structure** (the
+  message renders a 422 list via `_render_error_detail`, but the list itself stays on the attribute
+  — interpolating it was the original defect and produced an unparseable repr); and **`__reduce__`
+  must stay**, because `BaseException.__reduce__` rebuilds from `args`, which holds only the
+  message, so without it a pickle/copy round-trip returns an exception that **looks right and has
+  silently lost the context**. `status_code` is the only thing separating a 400 from a 422. Full
+  rationale: § Exception Hierarchy.
+- **`/tmp/` is prohibited** as the home for any script that produces, modifies or analyzes
+  repository content — it is reaped when sessions, sandboxes or containers end, and the scripts are
+  irrecoverable. Scratch *data* there is fine; source files are not. Permanent utilities live in
+  `util/`, single-use ones in `util/ad-hoc/`. Full rule: § Script Placement.
 
 ## Quick Reference
 
