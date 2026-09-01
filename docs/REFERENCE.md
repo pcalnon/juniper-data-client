@@ -34,6 +34,32 @@
 
 ---
 
+## Project Overview Reference
+
+Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it is read on demand rather than loaded into every session.
+
+`juniper-data-client` is the official Python client library for the JuniperData dataset generation service. It is a shared dependency used by both **JuniperCascor** (neural network backend) and **JuniperCanopy** (web dashboard).
+
+### Consumers
+
+- **JuniperCascor**: `SpiralDataProvider` uses this client for dataset retrieval
+- **JuniperCanopy**: `DemoMode` and `CascorIntegration` use this client
+
+### Data Contract
+
+NPZ artifacts with keys: `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`)
+
+### Environment Variables
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `JUNIPER_DATA_API_KEY` | API key for authentication (sent as `X-API-Key` header) | None (optional) |
+| `JUNIPER_DATA_URL` | Service URL (used by consuming applications) | `http://localhost:8100` |
+
+> **This table is the relocated summary, not the canonical list.** [§ Environment Variables](#environment-variables) below is authoritative: it also documents `JUNIPER_DATA_API_KEY_FILE` (Docker-secret indirection) and the precedence between the three. Prefer it, and update it rather than this table.
+
+---
+
 ## Client API
 
 ### Import
@@ -302,6 +328,43 @@ Available via `juniper_data_client.testing`:
 | `generate_xor(...)` | XOR classification dataset |
 | `generate_circle(...)` | Concentric circles dataset |
 | `generate_moon(...)` | Half-moon classification dataset |
+
+---
+
+## Testing Utilities Reference
+
+Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it is read on demand rather than loaded into every session.
+
+The `juniper_data_client.testing` submodule ships with the package and provides tools for consumer projects to test without a live juniper-data service.
+
+### FakeDataClient
+
+Drop-in replacement for `JuniperDataClient` that stores datasets in memory using synthetic generators. Implements the same public API — no network calls required.
+
+```python
+from juniper_data_client.testing import FakeDataClient
+
+client = FakeDataClient()
+result = client.create_spiral_dataset(n_spirals=2, n_points_per_spiral=100)
+data = client.download_artifact_npz(result["dataset_id"])
+```
+
+### Synthetic Generators
+
+```python
+from juniper_data_client.testing import generate_spiral, generate_xor, generate_circle, generate_moon
+```
+
+| Generator | Description | Output |
+|-----------|-------------|--------|
+| `generate_spiral(n_spirals, n_points_per_spiral, noise, seed)` | Archimedean spiral classification | Dict with X_train, y_train, etc. |
+| `generate_xor(n_points, noise, seed)` | XOR classification | Dict with X_train, y_train, etc. |
+| `generate_circle(n_points, noise, factor, seed)` | Concentric circles | Dict with X_train, y_train, etc. |
+| `generate_moon(n_points, noise, seed)` | Two half-moons | Dict with X_train, y_train, etc. |
+
+All generators return `Dict[str, np.ndarray]` with keys `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`).
+
+---
 
 ---
 
