@@ -40,7 +40,7 @@ from juniper_data_client.testing.generators import generate_circle, generate_moo
 # ======================================================================
 # Standard NPZ keys used by the Juniper data contract
 # ======================================================================
-_NPZ_KEYS = {"X_train", "y_train", "X_test", "y_test", "X_full", "y_full"}
+_NPZ_KEYS = {"X_train", "y_train", "X_val", "y_val", "X_test", "y_test", "X_full", "y_full"}
 
 
 # ======================================================================
@@ -195,6 +195,7 @@ class TestDatasetCreation:
         result = fake_client.create_dataset("spiral", {"n_spirals": 2, "n_points_per_spiral": 100, "seed": 42})
         meta = result["meta"]
         assert "n_train" in meta
+        assert "n_val" in meta
         assert "n_test" in meta
         assert "n_full" in meta
         assert "n_features" in meta
@@ -202,7 +203,8 @@ class TestDatasetCreation:
         assert meta["dtype"] == "float32"
         assert meta["n_features"] == 2, "Spiral datasets have 2 features (x, y)"
         assert meta["n_classes"] == 2, "2-spiral dataset has 2 classes"
-        assert meta["n_full"] == meta["n_train"] + meta["n_test"]
+        assert meta["n_val"] > 0, "n_val must be non-empty, or the sum below holds vacuously"
+        assert meta["n_full"] == meta["n_train"] + meta["n_val"] + meta["n_test"]
 
 
 # ======================================================================
@@ -435,23 +437,31 @@ class TestDataContract:
 
         assert 0.75 <= actual_ratio <= 0.85, f"Train ratio {actual_ratio:.3f} outside expected range [0.75, 0.85] " f"(n_train={n_train}, n_full={n_full})"
 
-    def test_full_dataset_is_union_of_train_test(self, fake_client: FakeDataClient) -> None:
-        """X_full/y_full contain the same number of samples as X_train + X_test."""
+    def test_full_dataset_is_union_of_the_three_partitions(self, fake_client: FakeDataClient) -> None:
+        """X_full/y_full hold as many samples as X_train + X_val + X_test.
+
+        The length identity spans all THREE partitions now that ``val`` is
+        carved out. Asserting it over train + test alone would pass only while
+        ``val`` is empty, which is exactly the regression this guards.
+        """
         result = fake_client.create_dataset("spiral", {"n_spirals": 2, "n_points_per_spiral": 100, "seed": 42})
         arrays = fake_client.download_artifact_npz(result["dataset_id"])
 
         n_train = arrays["X_train"].shape[0]
+        n_val = arrays["X_val"].shape[0]
         n_test = arrays["X_test"].shape[0]
         n_full = arrays["X_full"].shape[0]
 
-        assert n_full == n_train + n_test, f"X_full ({n_full}) != X_train ({n_train}) + X_test ({n_test})"
+        assert n_val > 0, "X_val must be non-empty, or this test passes vacuously"
+        assert n_full == n_train + n_val + n_test, f"X_full ({n_full}) != X_train ({n_train}) + X_val ({n_val}) + X_test ({n_test})"
 
         # Same check for labels
         n_y_train = arrays["y_train"].shape[0]
+        n_y_val = arrays["y_val"].shape[0]
         n_y_test = arrays["y_test"].shape[0]
         n_y_full = arrays["y_full"].shape[0]
 
-        assert n_y_full == n_y_train + n_y_test, f"y_full ({n_y_full}) != y_train ({n_y_train}) + y_test ({n_y_test})"
+        assert n_y_full == n_y_train + n_y_val + n_y_test, f"y_full ({n_y_full}) != y_train ({n_y_train}) + y_val ({n_y_val}) + y_test ({n_y_test})"
 
     def test_y_arrays_are_one_hot_encoded(self, fake_client: FakeDataClient) -> None:
         """Label arrays are one-hot encoded: each row sums to 1.0 with values in {0, 1}."""
