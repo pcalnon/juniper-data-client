@@ -4,7 +4,7 @@
 
 **Version:** 0.4.2
 **Status:** Active
-**Last Updated:** August 24, 2026
+**Last Updated:** September 4, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -26,6 +26,7 @@
 |---------------------------------|----------------------------------------------------|----------|
 | **Install and use the client**  | [QUICK_START.md](QUICK_START.md)                   | docs/    |
 | **See the full API reference**  | [REFERENCE.md](REFERENCE.md)                       | docs/    |
+| **Understand train / val / test NPZ keys** | [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test) | docs/ |
 | **Understand the project**      | [README.md](../README.md)                          | Root     |
 | **See development conventions** | [AGENTS.md](../AGENTS.md)                          | Root     |
 | **See version history**         | [CHANGELOG.md](../CHANGELOG.md)                    | Root     |
@@ -75,7 +76,7 @@ juniper-ml ──meta-package──> juniper-data-client
 
 This client is **0.4.x** (`pip install juniper-data-client`; pin `>=0.4.2,<0.5.0` or via `juniper-ml[data]`). Server and consumer versions live in those repos — do not copy a stale matrix from this index.
 
-Construction-time URL guards, exception context (`status_code` / `detail` / `response`), `JuniperDataContractError`, and idempotent-only retries are documented in [REFERENCE.md](REFERENCE.md).
+Construction-time URL guards, exception context (`status_code` / `detail` / `response`), `JuniperDataContractError`, idempotent-only retries, and the three-way `train` / `val` / `test` NPZ split (#187) are documented in [REFERENCE.md](REFERENCE.md).
 
 ---
 
@@ -84,7 +85,7 @@ Construction-time URL guards, exception context (`status_code` / `detail` / `res
 ### Upstream Service
 
 - **juniper-data** -- [API Reference](https://github.com/pcalnon/juniper-data) (service that this client calls)
-- **Data contract**: NPZ artifacts with keys `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`)
+- **Data contract**: NPZ artifacts with keys `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`). `val` is presence-conditional — see [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test).
 
 ### Downstream Consumers
 
@@ -97,7 +98,7 @@ Construction-time URL guards, exception context (`status_code` / `detail` / `res
 
 ---
 
-**Last Updated:** August 24, 2026
+**Last Updated:** September 4, 2026
 **Version:** 0.4.2
 **Maintainer:** Paul Calnon
 

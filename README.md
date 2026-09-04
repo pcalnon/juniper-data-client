@@ -11,8 +11,10 @@ instance. It exposes a single `JuniperDataClient` class whose methods correspond
 generator schemas, dataset creation, tag-based filtering, batch operations, the named-version
 registry, and download of the resulting NPZ artifacts as ready-to-train `numpy` arrays. It is the
 canonical dataset-fetch interface used by `juniper-cascor` (training) and `juniper-canopy`
-(visualisation), and it reads the platform's shared `X_train` / `y_train` / `X_test` / `y_test` /
-`X_full` / `y_full` NPZ schema (all `float32`).
+(visualisation), and it reads the platform's shared `X_train` / `y_train` / `X_val` / `y_val` /
+`X_test` / `y_test` / `X_full` / `y_full` NPZ schema (all `float32`). `val` is
+presence-conditional: `validate_npz_contract` skips a split the artifact does not
+carry. Fake producers emit it (#187); live artifacts may omit it.
 
 > **Part of the Juniper platform.** juniper-data-client is the Python HTTP client for the juniper-data
 > dataset service in [Juniper](https://github.com/pcalnon/juniper-ml) — a multi-package ML research
