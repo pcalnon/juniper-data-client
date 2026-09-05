@@ -420,7 +420,11 @@ class FakeDataClient:
         n_train = arrays["X_train"].shape[0]
         n_val = arrays["X_val"].shape[0]
         n_test = arrays["X_test"].shape[0]
-        n_full = arrays["X_full"].shape[0]
+        # The partition SUM, not len(X_full). Decision 11 removed X_full from the
+        # contract, and DatasetMeta.n_samples has been the three-way sum since
+        # juniper-data#358 -- so this now agrees with the real service instead of
+        # measuring an array the service no longer emits.
+        n_full = n_train + n_val + n_test
         n_features = arrays["X_train"].shape[1]
         n_classes = arrays["y_train"].shape[1]
 
@@ -656,7 +660,15 @@ class FakeDataClient:
     def get_preview(self, dataset_id: str, n: int = DEFAULT_PREVIEW_N) -> Dict[str, Any]:
         """Get a JSON-serializable preview of dataset samples.
 
-        Returns the first ``n`` samples from the full dataset (X_full / y_full).
+        Returns the first ``n`` samples of the TRAINING partition.
+
+        It read ``X_full`` until decision 11 removed that key from the contract.
+        Serving ``train`` is design section 9.5.4 item 3's stated choice, and it does
+        change the semantics slightly: a preview is now a sample of what the model is
+        fit on, not of the whole dataset. For a shuffled tabular artifact the two are
+        distributionally the same; for a SEQUENCE artifact they are not, because train
+        is the chronologically earliest block. A caller wanting later rows should ask
+        for the partition it means.
 
         Args:
             dataset_id: ID of the dataset to preview.
@@ -672,16 +684,16 @@ class FakeDataClient:
             raise JuniperDataNotFoundError(f"Dataset not found: {dataset_id}", status_code=404)
 
         arrays = self._datasets[dataset_id]["arrays"]
-        X_full = arrays["X_full"]
-        y_full = arrays["y_full"]
+        X_preview = arrays["X_train"]
+        y_preview = arrays["y_train"]
 
         # Cap at available samples and the requested count
-        n_available = min(n, X_full.shape[0], MAX_PREVIEW_N)
+        n_available = min(n, X_preview.shape[0], MAX_PREVIEW_N)
 
         return {
             "n_samples": int(n_available),
-            "X_sample": X_full[:n_available].tolist(),
-            "y_sample": y_full[:n_available].tolist(),
+            "X_sample": X_preview[:n_available].tolist(),
+            "y_sample": y_preview[:n_available].tolist(),
         }
 
     # ------------------------------------------------------------------

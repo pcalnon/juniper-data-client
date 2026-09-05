@@ -83,8 +83,6 @@ All arrays are `float32` dtype.
 | `y_val`   | `(n_val, n_classes)`    | In-loop validation labels (one-hot) |
 | `X_test`  | `(n_test, n_features)`  | Test features                 |
 | `y_test`  | `(n_test, n_classes)`   | Test labels (one-hot)         |
-| `X_full`  | `(n_total, n_features)` | Full dataset features (retained) |
-| `y_full`  | `(n_total, n_classes)`  | Full dataset labels (one-hot) |
 
 `NPZ_SPLITS` is `("train", "val", "test", "full")`. `validate_npz_contract` skips a split the artifact does not carry. Fake generators emit `val` at `FAKE_VAL_RATIO_DEFAULT` (0.1) — a 200-row default spiral is **160 / 20 / 20**, not 160 / 40. `FakeDataClient` metadata includes `n_val`. See [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test).
 

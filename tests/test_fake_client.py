@@ -23,7 +23,7 @@
 
 Task 6.10 — Tests verify that FakeDataClient provides a faithful drop-in
 replacement for JuniperDataClient, including the NPZ data contract
-(X_train, y_train, X_test, y_test, X_full, y_full — all float32,
+(X_train, y_train, X_val, y_val, X_test, y_test — all float32,
 one-hot encoded labels).
 """
 
@@ -40,7 +40,10 @@ from juniper_data_client.testing.generators import generate_circle, generate_moo
 # ======================================================================
 # Standard NPZ keys used by the Juniper data contract
 # ======================================================================
-_NPZ_KEYS = {"X_train", "y_train", "X_val", "y_val", "X_test", "y_test", "X_full", "y_full"}
+# The contract's key set. ``X_full`` / ``y_full`` left it with decision 11; a stored
+# artifact may still carry them and that is fine -- this is what the fake EMITS, not
+# what a reader must reject.
+_NPZ_KEYS = {"X_train", "y_train", "X_val", "y_val", "X_test", "y_test"}
 
 
 # ======================================================================
@@ -345,15 +348,15 @@ class TestArtifactDownload:
 
         n_features_train = arrays["X_train"].shape[1]
         n_features_test = arrays["X_test"].shape[1]
-        n_features_full = arrays["X_full"].shape[1]
+        n_features_val = arrays["X_val"].shape[1]
 
-        assert n_features_train == n_features_test == n_features_full, f"Feature dimensions inconsistent: train={n_features_train}, " f"test={n_features_test}, full={n_features_full}"
+        assert n_features_train == n_features_test == n_features_val, f"Feature dimensions inconsistent: train={n_features_train}, " f"test={n_features_test}, val={n_features_val}"
 
         n_classes_train = arrays["y_train"].shape[1]
         n_classes_test = arrays["y_test"].shape[1]
-        n_classes_full = arrays["y_full"].shape[1]
+        n_classes_val = arrays["y_val"].shape[1]
 
-        assert n_classes_train == n_classes_test == n_classes_full, f"Class dimensions inconsistent: train={n_classes_train}, " f"test={n_classes_test}, full={n_classes_full}"
+        assert n_classes_train == n_classes_test == n_classes_val, f"Class dimensions inconsistent: train={n_classes_train}, " f"test={n_classes_test}, val={n_classes_val}"
 
     def test_download_artifact_bytes_returns_valid_npz(self, fake_client: FakeDataClient) -> None:
         """download_artifact_bytes() returns bytes that can be loaded as a valid NPZ file."""
@@ -432,43 +435,35 @@ class TestDataContract:
         arrays = fake_client.download_artifact_npz(result["dataset_id"])
 
         n_train = arrays["X_train"].shape[0]
-        n_full = arrays["X_full"].shape[0]
+        n_full = arrays["X_train"].shape[0] + arrays["X_val"].shape[0] + arrays["X_test"].shape[0]
         actual_ratio = n_train / n_full
 
         assert 0.75 <= actual_ratio <= 0.85, f"Train ratio {actual_ratio:.3f} outside expected range [0.75, 0.85] " f"(n_train={n_train}, n_full={n_full})"
 
-    def test_full_dataset_is_union_of_the_three_partitions(self, fake_client: FakeDataClient) -> None:
-        """X_full/y_full hold as many samples as X_train + X_val + X_test.
+    def test_metadata_total_equals_the_partition_sum(self, fake_client: FakeDataClient) -> None:
+        """``n_full`` is the partition sum -- there is no array left to compare against.
 
-        The length identity spans all THREE partitions now that ``val`` is
-        carved out. Asserting it over train + test alone would pass only while
-        ``val`` is empty, which is exactly the regression this guards.
+        This measured ``len(X_full) == n_train + n_val + n_test`` until decision 11
+        removed ``X_full`` from the contract. The property it was really pinning is that
+        the metadata's total agrees with the partitions, and that survives the array's
+        removal: it just has to be read off the number rather than the array.
         """
-        result = fake_client.create_dataset("spiral", {"n_spirals": 2, "n_points_per_spiral": 100, "seed": 42})
-        arrays = fake_client.download_artifact_npz(result["dataset_id"])
+        dataset_id = fake_client.create_dataset("spiral", {"n_points_per_spiral": 60, "seed": 5})["dataset_id"]
+        arrays = fake_client.download_artifact_npz(dataset_id)
+        meta = fake_client.get_dataset_metadata(dataset_id)["meta"]
 
         n_train = arrays["X_train"].shape[0]
         n_val = arrays["X_val"].shape[0]
         n_test = arrays["X_test"].shape[0]
-        n_full = arrays["X_full"].shape[0]
-
-        assert n_val > 0, "X_val must be non-empty, or this test passes vacuously"
-        assert n_full == n_train + n_val + n_test, f"X_full ({n_full}) != X_train ({n_train}) + X_val ({n_val}) + X_test ({n_test})"
-
-        # Same check for labels
-        n_y_train = arrays["y_train"].shape[0]
-        n_y_val = arrays["y_val"].shape[0]
-        n_y_test = arrays["y_test"].shape[0]
-        n_y_full = arrays["y_full"].shape[0]
-
-        assert n_y_full == n_y_train + n_y_val + n_y_test, f"y_full ({n_y_full}) != y_train ({n_y_train}) + y_val ({n_y_val}) + y_test ({n_y_test})"
+        assert meta["n_full"] == n_train + n_val + n_test, f"n_full ({meta['n_full']}) != {n_train} + {n_val} + {n_test}"
+        assert n_val > 0, "a zero validation partition would make the sum agree vacuously"
 
     def test_y_arrays_are_one_hot_encoded(self, fake_client: FakeDataClient) -> None:
         """Label arrays are one-hot encoded: each row sums to 1.0 with values in {0, 1}."""
         result = fake_client.create_dataset("spiral", {"n_spirals": 2, "n_points_per_spiral": 100, "seed": 42})
         arrays = fake_client.download_artifact_npz(result["dataset_id"])
 
-        for key in ("y_train", "y_test", "y_full"):
+        for key in ("y_train", "y_val", "y_test"):
             y = arrays[key]
             # Each row should sum to exactly 1.0
             row_sums = y.sum(axis=1)
@@ -487,7 +482,7 @@ class TestDataContract:
         result = fake_client.create_dataset("spiral", {"n_spirals": 2, "n_points_per_spiral": 50, "seed": 42})
         arrays = fake_client.download_artifact_npz(result["dataset_id"])
 
-        n_classes = arrays["y_full"].shape[1]
+        n_classes = arrays["y_train"].shape[1]
         assert n_classes == 2, f"Expected 2 classes for 2-spiral dataset, got {n_classes}"
 
 
@@ -554,8 +549,8 @@ class TestGenerators:
         arrays = generate_spiral(n_spirals=2, n_points_per_spiral=50, seed=42)
         assert set(arrays.keys()) == _NPZ_KEYS
         n_total = 2 * 50
-        assert arrays["X_full"].shape[0] == n_total, f"Expected {n_total} total points"
-        assert arrays["X_full"].shape[1] == 2, "Spiral features should be 2-dimensional"
+        assert (arrays["X_train"].shape[0] + arrays["X_val"].shape[0] + arrays["X_test"].shape[0]) == n_total, f"Expected {n_total} total points"
+        assert arrays["X_train"].shape[1] == 2, "Spiral features should be 2-dimensional"
 
     def test_generate_spiral_reproducible_with_seed(self) -> None:
         """generate_spiral() produces identical output when called with the same seed."""
@@ -573,25 +568,25 @@ class TestGenerators:
         """generate_xor() returns arrays with correct structure."""
         arrays = generate_xor(n_points=100, seed=42)
         assert set(arrays.keys()) == _NPZ_KEYS
-        assert arrays["X_full"].shape[0] == 100
-        assert arrays["X_full"].shape[1] == 2, "XOR features should be 2-dimensional"
-        assert arrays["y_full"].shape[1] == 2, "XOR should have 2 classes"
+        assert (arrays["X_train"].shape[0] + arrays["X_val"].shape[0] + arrays["X_test"].shape[0]) == 100
+        assert arrays["X_train"].shape[1] == 2, "XOR features should be 2-dimensional"
+        assert arrays["y_train"].shape[1] == 2, "XOR should have 2 classes"
 
     def test_generate_circle_basic(self) -> None:
         """generate_circle() returns arrays with correct structure."""
         arrays = generate_circle(n_points=200, seed=42)
         assert set(arrays.keys()) == _NPZ_KEYS
-        assert arrays["X_full"].shape[0] == 200
-        assert arrays["X_full"].shape[1] == 2, "Circle features should be 2-dimensional"
-        assert arrays["y_full"].shape[1] == 2, "Circle should have 2 classes"
+        assert (arrays["X_train"].shape[0] + arrays["X_val"].shape[0] + arrays["X_test"].shape[0]) == 200
+        assert arrays["X_train"].shape[1] == 2, "Circle features should be 2-dimensional"
+        assert arrays["y_train"].shape[1] == 2, "Circle should have 2 classes"
 
     def test_generate_moon_basic(self) -> None:
         """generate_moon() returns arrays with correct structure."""
         arrays = generate_moon(n_points=200, seed=42)
         assert set(arrays.keys()) == _NPZ_KEYS
-        assert arrays["X_full"].shape[0] == 200
-        assert arrays["X_full"].shape[1] == 2, "Moon features should be 2-dimensional"
-        assert arrays["y_full"].shape[1] == 2, "Moon should have 2 classes"
+        assert (arrays["X_train"].shape[0] + arrays["X_val"].shape[0] + arrays["X_test"].shape[0]) == 200
+        assert arrays["X_train"].shape[1] == 2, "Moon features should be 2-dimensional"
+        assert arrays["y_train"].shape[1] == 2, "Moon should have 2 classes"
 
     def test_all_generators_return_float32(self) -> None:
         """All four generators produce exclusively float32 arrays."""

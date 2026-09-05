@@ -59,8 +59,18 @@ def _sequence_with_val() -> Dict[str, np.ndarray]:
 class TestPublishedSplitConstants:
     """``NPZ_SPLITS`` / ``FAKE_VAL_RATIO_DEFAULT`` are the published contract."""
 
-    def test_npz_splits_is_train_val_test_full(self) -> None:
-        assert NPZ_SPLITS == ("train", "val", "test", "full")
+    def test_npz_splits_is_train_val_test(self) -> None:
+        """``full`` left the contract with decision 11; ``val`` joined it with O-1."""
+        assert NPZ_SPLITS == ("train", "val", "test")
+
+    def test_npz_splits_does_not_readmit_full(self) -> None:
+        """Listing ``full`` again would make ``validate_npz_contract`` validate it.
+
+        A legacy artifact may still CARRY ``X_full`` -- design §9.5 requires consumers to
+        tolerate that -- but validating it would turn tolerance back into a requirement
+        pointing the other way, and every artifact this client emits would then fail.
+        """
+        assert "full" not in NPZ_SPLITS
 
     def test_fake_val_ratio_default_is_one_tenth(self) -> None:
         assert FAKE_VAL_RATIO_DEFAULT == 0.1
@@ -85,16 +95,26 @@ class TestPartitionReconstruction:
         ],
         ids=("spiral", "xor", "circle", "moon"),
     )
-    def test_vstack_of_three_partitions_equals_full(self, factory: Callable[[], Dict[str, np.ndarray]]) -> None:
+    def test_the_three_partitions_account_for_every_generated_row(self, factory: Callable[[], Dict[str, np.ndarray]]) -> None:
+        """Every generated row lands in exactly one partition, and none is lost.
+
+        This compared the three against ``X_full`` until decision 11 removed that array.
+        The reference is gone; the PROPERTY is not, and it is the property that mattered
+        -- a partitioner that silently drops rows to rounding is the defect this guards
+        (juniper-data's carve dropped 25% of a four-row dataset that way). Without an
+        in-artifact reference it is pinned two ways instead: X and y agree on every
+        partition's row count, and no row appears twice.
+        """
         arrays = factory()
-        np.testing.assert_array_equal(
-            np.vstack((arrays["X_train"], arrays["X_val"], arrays["X_test"])),
-            arrays["X_full"],
-        )
-        np.testing.assert_array_equal(
-            np.vstack((arrays["y_train"], arrays["y_val"], arrays["y_test"])),
-            arrays["y_full"],
-        )
+        counts = [arrays[f"X_{s}"].shape[0] for s in ("train", "val", "test")]
+        y_counts = [arrays[f"y_{s}"].shape[0] for s in ("train", "val", "test")]
+        assert counts == y_counts, f"X and y disagree on partition sizes: {counts} vs {y_counts}"
+        assert all(c > 0 for c in counts), f"every partition must claim rows, got {counts}"
+
+        stacked = np.vstack((arrays["X_train"], arrays["X_val"], arrays["X_test"]))
+        assert stacked.shape[0] == sum(counts)
+        unique_rows = np.unique(stacked, axis=0).shape[0]
+        assert unique_rows == stacked.shape[0], f"{stacked.shape[0] - unique_rows} row(s) appear in more than one partition"
 
     def test_unique_rows_are_index_disjoint(self) -> None:
         """With unique feature rows, the three partitions share no sample."""
@@ -105,7 +125,10 @@ class TestPartitionReconstruction:
         assert train.isdisjoint(val)
         assert train.isdisjoint(test)
         assert val.isdisjoint(test)
-        assert train | val | test == set(arrays["X_full"].ravel().tolist())
+        # The union used to be compared against X_full. With that array gone, the
+        # equivalent claim is that nothing was dropped: the three partitions hold every
+        # one of the n distinct values the toy split was built from.
+        assert len(train | val | test) == 40
 
 
 @pytest.mark.unit
@@ -144,10 +167,8 @@ class TestSplitDatasetEdges:
         assert arrays["X_val"].shape[0] == 0
         assert arrays["X_test"].shape[0] == 2
         assert arrays["y_val"].shape[0] == 0
-        np.testing.assert_array_equal(
-            np.vstack((arrays["X_train"], arrays["X_test"])),
-            arrays["X_full"],
-        )
+        # An empty val must not cost a row: the two non-empty partitions still hold all 9.
+        assert arrays["X_train"].shape[0] + arrays["X_val"].shape[0] + arrays["X_test"].shape[0] == 9
 
     def test_train_plus_val_exceeding_one_empties_test(self) -> None:
         """No clamp: ``0.95 + 0.1`` on n=20 cuts test to empty, not an error."""
@@ -156,10 +177,8 @@ class TestSplitDatasetEdges:
         assert arrays["X_val"].shape[0] == 1
         assert arrays["X_test"].shape[0] == 0
         assert arrays["y_test"].shape[0] == 0
-        np.testing.assert_array_equal(
-            np.vstack((arrays["X_train"], arrays["X_val"])),
-            arrays["X_full"],
-        )
+        # Same on the other edge: an empty test partition loses nothing.
+        assert arrays["X_train"].shape[0] + arrays["X_val"].shape[0] + arrays["X_test"].shape[0] == 20
 
     def test_custom_val_ratio_is_honoured(self) -> None:
         arrays = _toy_split(n=200, train_ratio=0.5, val_ratio=0.25)

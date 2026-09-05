@@ -36,7 +36,8 @@ from juniper_data_client.testing import FakeDataClient
 # ======================================================================
 # Standard NPZ keys used by the Juniper data contract
 # ======================================================================
-_NPZ_KEYS = {"X_train", "y_train", "X_val", "y_val", "X_test", "y_test", "X_full", "y_full"}
+# The contract's key set. ``X_full`` / ``y_full`` left it with decision 11.
+_NPZ_KEYS = {"X_train", "y_train", "X_val", "y_val", "X_test", "y_test"}
 
 
 # ======================================================================

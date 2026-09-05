@@ -48,7 +48,7 @@ Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it
 
 ### Data Contract
 
-NPZ artifacts with keys: `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`). `val` is presence-conditional — see [Three-way `train` / `val` / `test`](#three-way-train--val--test).
+NPZ artifacts with keys: `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test` (all `float32`). A stored artifact produced before 2026-09-05 also carries `X_full` / `y_full`; readers tolerate them and no reader requires them (decision 11). `val` is presence-conditional — see [Three-way `train` / `val` / `test`](#three-way-train--val--test).
 
 ### Environment Variables
 
@@ -363,7 +363,7 @@ from juniper_data_client.testing import generate_spiral, generate_xor, generate_
 | `generate_circle(n_points, noise, factor, seed)` | Concentric circles | Dict with X_train, y_train, etc. |
 | `generate_moon(n_points, noise, seed)` | Two half-moons | Dict with X_train, y_train, etc. |
 
-All four generators return `Dict[str, np.ndarray]` with keys `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`). They share `_split_dataset`, which carves `val` at `FAKE_VAL_RATIO_DEFAULT` (0.1). A 200-row fake at the default 0.8 train ratio is **160 / 20 / 20**, not 160 / 40.
+All four generators return `Dict[str, np.ndarray]` with keys `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test` (all `float32`). They share `_split_dataset`, which carves `val` at `FAKE_VAL_RATIO_DEFAULT` (0.1). A 200-row fake at the default 0.8 train ratio is **160 / 20 / 20**, not 160 / 40.
 
 ---
 
@@ -734,8 +734,6 @@ All arrays are `float32` dtype.
 | `y_val` | `(n_val, n_classes)` | In-loop validation labels (one-hot; presence-conditional) |
 | `X_test` | `(n_test, n_features)` | Test features |
 | `y_test` | `(n_test, n_classes)` | Test labels (one-hot) |
-| `X_full` | `(n_total, n_features)` | Full dataset features (retained; decision 11 drops `*_full` later) |
-| `y_full` | `(n_total, n_classes)` | Full dataset labels (one-hot) |
 
 `NPZ_SPLITS` is `("train", "val", "test", "full")` (#187). Fake producers default to 0.8 / 0.1 / remainder (`FAKE_VAL_RATIO_DEFAULT`). Live artifacts may omit `val`.
 
