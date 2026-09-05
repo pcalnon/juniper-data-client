@@ -418,6 +418,7 @@ class FakeDataClient:
         now = datetime.now(timezone.utc).isoformat()
 
         n_train = arrays["X_train"].shape[0]
+        n_val = arrays["X_val"].shape[0]
         n_test = arrays["X_test"].shape[0]
         n_full = arrays["X_full"].shape[0]
         n_features = arrays["X_train"].shape[1]
@@ -425,6 +426,7 @@ class FakeDataClient:
 
         meta: Dict[str, Any] = {
             "n_train": n_train,
+            "n_val": n_val,
             "n_test": n_test,
             "n_full": n_full,
             "n_features": n_features,
