@@ -85,7 +85,7 @@ Construction-time URL guards, exception context (`status_code` / `detail` / `res
 ### Upstream Service
 
 - **juniper-data** -- [API Reference](https://github.com/pcalnon/juniper-data) (service that this client calls)
-- **Data contract**: NPZ artifacts with keys `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`). `val` is presence-conditional — see [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test).
+- **Data contract**: NPZ artifacts with keys `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test` (all `float32`). `val` is presence-conditional — see [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test).
 
 ### Downstream Consumers
 

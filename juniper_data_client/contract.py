@@ -64,9 +64,12 @@ def validate_npz_contract(arrays: Dict[str, np.ndarray], *, dt_atol: float = 1e-
             and ``ValueError``, so call sites written against the original
             ``Raises: ValueError`` contract are unaffected.
     """
-    x_full_key = f"{NPZ_KEY_X}_full"
-    x_train_key = f"{NPZ_KEY_X}_train"
-    x = arrays[x_full_key] if x_full_key in arrays else arrays[x_train_key]
+    # Dispatch on X_train, not X_full. X_full was the rank probe until decision 11
+    # removed it from the contract; X_train is present in every artifact by definition,
+    # so this needs no fallback and does not consult a key the producer has stopped
+    # emitting. A legacy artifact carrying X_full still classifies identically -- the
+    # two never disagreed about rank.
+    x = arrays[f"{NPZ_KEY_X}_train"]
     if x.ndim == 2:
         return CONTRACT_KIND_TABULAR
     if x.ndim != 3:

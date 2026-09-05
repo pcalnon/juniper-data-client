@@ -426,10 +426,15 @@ FAKE_SERVICE_UPTIME_SECONDS: float = 0.0
 # listing it does not require an artifact to provide it, and two-partition
 # legacy artifacts keep validating unchanged.
 #
-# "full" is retained for now. Decision 11 drops the whole *_full family from
-# the contract, but every stored artifact still carries it and consumers must
-# keep tolerating it; only the requirement is dropped, in a later change.
-NPZ_SPLITS: Tuple[str, ...] = ("train", "val", "test", "full")
+# "full" is GONE (decision 11, 2026-09-05). The *_full family is no longer part of
+# the contract: generators do not emit it and no consumer may require it.
+#
+# Removing it from this tuple does NOT stop a legacy artifact loading. Every stored
+# artifact still carries X_full, and validate_npz_contract skips any split it does
+# not list -- so an X_full that is present is simply not validated, which is what
+# "tolerate, do not require" means in practice. Adding it back to get it validated
+# would re-create the requirement this decision removed.
+NPZ_SPLITS: Tuple[str, ...] = ("train", "val", "test")
 
 # Validation share used by the synthetic generators in juniper_data_client.testing.
 # Applied alongside each generator's train ratio, so the default 0.8 / 0.1 carve

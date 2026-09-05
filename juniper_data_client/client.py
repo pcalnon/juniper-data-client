@@ -644,7 +644,6 @@ class JuniperDataClient:
         artifacts carry the standard keys:
         - X_train, y_train: Training features and one-hot labels
         - X_test, y_test: Test features and one-hot labels
-        - X_full, y_full: Full dataset features and one-hot labels
 
         Additional keys may be present depending on the generator (WS-1 /
         juniper-data#168):

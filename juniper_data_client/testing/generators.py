@@ -16,13 +16,13 @@
 #    Synthetic dataset generators for FakeDataClient testing.
 #    Produces numpy arrays matching the NPZ data contract used by
 #    the real JuniperData service: X_train, y_train, X_val, y_val, X_test, y_test,
-#    X_full, y_full — all float32, with one-hot encoded labels.
+#    all float32, with one-hot encoded labels.
 #####################################################################################################################################################################################################
 
 """Synthetic dataset generators for testing without a live JuniperData service.
 
 Each generator produces a Dict[str, np.ndarray] with the standard NPZ keys:
-X_train, y_train, X_val, y_val, X_test, y_test, X_full, y_full (all float32,
+X_train, y_train, X_val, y_val, X_test, y_test (all float32,
 one-hot labels).
 """
 
@@ -99,7 +99,6 @@ def _split_dataset(
 
     Returns:
         Dictionary with keys X_train, y_train, X_val, y_val, X_test, y_test,
-        X_full, y_full.
     """
     n_samples = X.shape[0]
     indices = rng.permutation(n_samples)
@@ -116,8 +115,6 @@ def _split_dataset(
         "y_val": y_one_hot[train_end:val_end].astype(np.float32),
         "X_test": X[val_end:].astype(np.float32),
         "y_test": y_one_hot[val_end:].astype(np.float32),
-        "X_full": X.astype(np.float32),
-        "y_full": y_one_hot.astype(np.float32),
     }
 
 
@@ -141,7 +138,7 @@ def generate_spiral(
         train_ratio: Fraction of data used for training (default: 0.8).
 
     Returns:
-        Dictionary with keys X_train, y_train, X_val, y_val, X_test, y_test, X_full, y_full.
+        Dictionary with keys X_train, y_train, X_val, y_val, X_test, y_test.
         All arrays are float32. Labels are one-hot encoded.
     """
     rng = np.random.default_rng(seed)
@@ -187,7 +184,7 @@ def generate_xor(
         train_ratio: Fraction of data used for training (default: 0.8).
 
     Returns:
-        Dictionary with keys X_train, y_train, X_val, y_val, X_test, y_test, X_full, y_full.
+        Dictionary with keys X_train, y_train, X_val, y_val, X_test, y_test.
         All arrays are float32. Labels are one-hot encoded.
     """
     rng = np.random.default_rng(seed)
@@ -236,7 +233,7 @@ def generate_circle(
         train_ratio: Fraction of data used for training (default: 0.8).
 
     Returns:
-        Dictionary with keys X_train, y_train, X_val, y_val, X_test, y_test, X_full, y_full.
+        Dictionary with keys X_train, y_train, X_val, y_val, X_test, y_test.
         All arrays are float32. Labels are one-hot encoded.
     """
     rng = np.random.default_rng(seed)
@@ -290,7 +287,7 @@ def generate_moon(
         train_ratio: Fraction of data used for training (default: 0.8).
 
     Returns:
-        Dictionary with keys X_train, y_train, X_val, y_val, X_test, y_test, X_full, y_full.
+        Dictionary with keys X_train, y_train, X_val, y_val, X_test, y_test.
         All arrays are float32. Labels are one-hot encoded.
     """
     rng = np.random.default_rng(seed)
