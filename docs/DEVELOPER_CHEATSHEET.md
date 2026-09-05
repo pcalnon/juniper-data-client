@@ -1,7 +1,7 @@
 # Developer Cheatsheet — juniper-data-client
 
-**Version**: 1.0.1
-**Date**: 2026-08-24
+**Version**: 1.0.2
+**Date**: 2026-09-04
 **Project**: juniper-data-client
 
 ---
@@ -79,10 +79,14 @@ All arrays are `float32` dtype.
 |-----------|-------------------------|-------------------------------|
 | `X_train` | `(n_train, n_features)` | Training features             |
 | `y_train` | `(n_train, n_classes)`  | Training labels (one-hot)     |
+| `X_val`   | `(n_val, n_features)`   | In-loop validation features (presence-conditional; #187) |
+| `y_val`   | `(n_val, n_classes)`    | In-loop validation labels (one-hot) |
 | `X_test`  | `(n_test, n_features)`  | Test features                 |
 | `y_test`  | `(n_test, n_classes)`   | Test labels (one-hot)         |
-| `X_full`  | `(n_total, n_features)` | Full dataset features         |
+| `X_full`  | `(n_total, n_features)` | Full dataset features (retained) |
 | `y_full`  | `(n_total, n_classes)`  | Full dataset labels (one-hot) |
+
+`NPZ_SPLITS` is `("train", "val", "test", "full")`. `validate_npz_contract` skips a split the artifact does not carry. Fake generators emit `val` at `FAKE_VAL_RATIO_DEFAULT` (0.1) — a 200-row default spiral is **160 / 20 / 20**, not 160 / 40. `FakeDataClient` metadata includes `n_val`. See [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test).
 
 ---
 
@@ -96,6 +100,7 @@ with FakeDataClient() as client:
     result = client.create_spiral_dataset(n_spirals=2, seed=42)
     arrays = client.download_artifact_npz(result["dataset_id"])
     X_train = arrays["X_train"]  # numpy array, float32
+    X_val = arrays["X_val"]      # present on FakeDataClient after #187; live artifacts may omit it
 ```
 
 Synthetic generators available via `juniper_data_client.testing`: `generate_spiral`, `generate_xor`, `generate_circle`, `generate_moon`.
@@ -163,6 +168,8 @@ except JuniperDataTimeoutError:
 | `JuniperDataContractError` after download | Sequence NPZ failed Δt/mask rules | Call `validate_npz_contract(arrays)` and inspect `str(exc)`     |
 | Duplicate datasets after a 5xx POST    | Mutations are not auto-retried | Expected: only HEAD/GET/PUT retry. Use a dataset `name` for server-side dedupe. |
 | NPZ arrays have wrong shape            | Generator params mismatch  | Verify `n_points`, `train_ratio` params                         |
+| `X_test` is 20 rows in `FakeDataClient`, not 40 | #187 carves a 0.1 `val` share from the former test remainder | Sum `n_train + n_val + n_test`; do not pin test size |
+| `KeyError: 'X_val'` on a live download | Producer has not shipped `val` | Treat `val` as optional; only `FakeDataClient` (#187) always emits it |
 | Auth failures (401/403)                | Missing or wrong API key   | Pass `api_key=`, or set `JUNIPER_DATA_API_KEY_FILE` / `JUNIPER_DATA_API_KEY` |
 
 ---

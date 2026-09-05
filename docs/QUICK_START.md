@@ -4,7 +4,7 @@
 
 **Version:** 0.4.2
 **Status:** Active
-**Last Updated:** August 24, 2026
+**Last Updated:** September 4, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -74,10 +74,12 @@ print(f"Dataset ID: {result['dataset_id']}")
 # Download as numpy arrays
 arrays = client.download_artifact_npz(result["dataset_id"])
 
-X_train = arrays["X_train"]  # (160, 2) float32
-y_train = arrays["y_train"]  # (160, 2) float32 one-hot
-X_test = arrays["X_test"]    # (40, 2) float32
-y_test = arrays["y_test"]    # (40, 2) float32 one-hot
+X_train = arrays["X_train"]  # (n_train, 2) float32
+y_train = arrays["y_train"]  # (n_train, n_classes) float32 one-hot
+X_test = arrays["X_test"]    # (n_test, 2) float32
+y_test = arrays["y_test"]    # (n_test, n_classes) float32 one-hot
+# FakeDataClient (#187) also emits X_val / y_val (default 160/20/20 on a 200-row spiral).
+# Live artifacts may omit val; validate_npz_contract skips missing splits.
 
 print(f"Training: {X_train.shape}, Test: {X_test.shape}")
 
@@ -150,7 +152,7 @@ pytest tests/ -m unit -v
 pytest tests/ --cov=juniper_data_client --cov-report=term-missing --cov-fail-under=80
 ```
 
-The test suite includes a `FakeDataClient` for testing consumers without a running service. See [REFERENCE.md](REFERENCE.md) for details.
+The test suite includes a `FakeDataClient` for testing consumers without a running service. After #187 the fake emits `X_val` / `y_val` and metadata `n_val`; do not pin `X_test` at 40 rows. See [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test).
 
 ---
 
@@ -163,6 +165,6 @@ The test suite includes a `FakeDataClient` for testing consumers without a runni
 
 ---
 
-**Last Updated:** August 24, 2026
+**Last Updated:** September 4, 2026
 **Version:** 0.4.2
 **Status:** Active

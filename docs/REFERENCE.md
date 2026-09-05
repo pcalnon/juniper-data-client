@@ -4,7 +4,7 @@
 
 **Version:** 0.4.2
 **Status:** Active
-**Last Updated:** August 24, 2026
+**Last Updated:** September 4, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -27,6 +27,7 @@
 - [Constants Reference](#constants-reference)
 - [CI/CD Reference](#cicd-reference)
 - [NPZ Artifact Schema](#npz-artifact-schema)
+- [Three-way `train` / `val` / `test`](#three-way-train--val--test)
 - [`validate_npz_contract`](#validate_npz_contract)
 - [HTTP Behavior](#http-behavior)
 - [Environment Variables](#environment-variables)
@@ -47,7 +48,7 @@ Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it
 
 ### Data Contract
 
-NPZ artifacts with keys: `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`)
+NPZ artifacts with keys: `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`). `val` is presence-conditional — see [Three-way `train` / `val` / `test`](#three-way-train--val--test).
 
 ### Environment Variables
 
@@ -307,7 +308,7 @@ Locally raised errors (`JuniperDataConfigurationError`, connection, timeout, `Ju
 
 ### FakeDataClient
 
-Drop-in replacement for `JuniperDataClient` that generates synthetic datasets in-memory. No HTTP calls are made. `base_url` is stored as-is and is **not** run through `_normalize_url`, so a hostless fake URL does not raise. Errors it raises do populate `status_code` (400 unknown generator, 422 non-positive `ttl_seconds`, 404 missing resource).
+Drop-in replacement for `JuniperDataClient` that generates synthetic datasets in-memory. No HTTP calls are made. `base_url` is stored as-is and is **not** run through `_normalize_url`, so a hostless fake URL does not raise. Errors it raises do populate `status_code` (400 unknown generator, 422 non-positive `ttl_seconds`, 404 missing resource). After #187, downloaded fakes include `X_val` / `y_val` and metadata includes `n_val`.
 
 ```python
 from juniper_data_client.testing import FakeDataClient
@@ -362,7 +363,7 @@ from juniper_data_client.testing import generate_spiral, generate_xor, generate_
 | `generate_circle(n_points, noise, factor, seed)` | Concentric circles | Dict with X_train, y_train, etc. |
 | `generate_moon(n_points, noise, seed)` | Two half-moons | Dict with X_train, y_train, etc. |
 
-All generators return `Dict[str, np.ndarray]` with keys `X_train`, `y_train`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`).
+All four generators return `Dict[str, np.ndarray]` with keys `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test`, `X_full`, `y_full` (all `float32`). They share `_split_dataset`, which carves `val` at `FAKE_VAL_RATIO_DEFAULT` (0.1). A 200-row fake at the default 0.8 train ratio is **160 / 20 / 20**, not 160 / 40.
 
 ---
 
@@ -635,6 +636,7 @@ All numeric, string, and structural defaults used by the client and its testing 
 | `DEFAULT_*` | `DEFAULT_TIMEOUT_SECONDS=30`, `DEFAULT_RETRIES=3`, `DEFAULT_BACKOFF_FACTOR=0.5` | Constructor defaults for `JuniperDataClient` |
 | `RETRY_*` | `RETRY_STATUS_CODES_DEFAULT`, `RETRY_TOTAL_DEFAULT` | Retry/backoff tuning |
 | Generator parameter defaults | `SPIRAL_*`, `XOR_*`, `CIRCLES_*`, `GAUSSIAN_*`, `CHECKERBOARD_*` | Default values for the synthetic dataset generators in `testing/generators.py` |
+| `NPZ_*`, `FAKE_VAL_*` | `NPZ_SPLITS=("train", "val", "test", "full")`, `FAKE_VAL_RATIO_DEFAULT=0.1` | Per-split key suffixes and the fake's validation share (#187). `validate_npz_contract` skips a listed split the artifact does not carry. |
 
 ### Alignment with `juniper-data`
 
@@ -728,12 +730,29 @@ All arrays are `float32` dtype.
 |-----|-------|-------------|
 | `X_train` | `(n_train, n_features)` | Training features |
 | `y_train` | `(n_train, n_classes)` | Training labels (one-hot) |
+| `X_val` | `(n_val, n_features)` | In-loop validation features (presence-conditional) |
+| `y_val` | `(n_val, n_classes)` | In-loop validation labels (one-hot; presence-conditional) |
 | `X_test` | `(n_test, n_features)` | Test features |
 | `y_test` | `(n_test, n_classes)` | Test labels (one-hot) |
-| `X_full` | `(n_total, n_features)` | Full dataset features |
+| `X_full` | `(n_total, n_features)` | Full dataset features (retained; decision 11 drops `*_full` later) |
 | `y_full` | `(n_total, n_classes)` | Full dataset labels (one-hot) |
 
-Default split: 80% training, 20% test (controlled by `train_ratio`).
+`NPZ_SPLITS` is `("train", "val", "test", "full")` (#187). Fake producers default to 0.8 / 0.1 / remainder (`FAKE_VAL_RATIO_DEFAULT`). Live artifacts may omit `val`.
+
+### Three-way `train` / `val` / `test`
+
+#187 is the client-side half of the three-way partition contract (design decision O-1; Chunk 2 of the juniper-ml partition plan, which also closes that plan's S-3). Pairs with juniper-data#353 (producer-side sizing). It is **not** a breaking validator change.
+
+| Surface | After #187 | Constraint |
+|---------|------------|------------|
+| `NPZ_SPLITS` | `("train", "val", "test", "full")` | `"full"` stays until decision 11 drops the `*_full` family. Stored artifacts still carry it; consumers must keep tolerating it. |
+| `validate_npz_contract` | Iterates `NPZ_SPLITS` under `if x_key in arrays` | A split the artifact does not carry is skipped. Two-partition live/legacy artifacts validate unchanged. Do not `KeyError` on missing `X_val`. |
+| `testing/generators._split_dataset` | Three contiguous, index-disjoint blocks of one shuffled array | `train` = `train_ratio` (default 0.8); `val` = `FAKE_VAL_RATIO_DEFAULT` (0.1); `test` takes the remainder so no row is dropped. |
+| `FakeDataClient` metadata | Gains `n_val` | Length identity is `n_full == n_train + n_val + n_test` (risk R-5). Pins assert `n_val > 0` so the sum cannot pass vacuously. |
+
+**Consumer pitfall.** At the default 0.8 train ratio a 200-row fake (`n_spirals=2`, `n_points_per_spiral=100`) splits **160 / 20 / 20**, not 160 / 40. Assertions that pin `X_test`'s size against `FakeDataClient` will move. `JuniperDataClient.download_artifact_npz` still returns whatever the server wrote — this change does not alter the HTTP payload.
+
+Pins: `tests/test_fake_client.py` (`test_full_dataset_is_union_of_the_three_partitions`, `test_create_dataset_returns_metadata`); `_NPZ_KEYS` there and in `tests/test_fake_client_batch.py`.
 
 ### `validate_npz_contract`
 
@@ -820,6 +839,6 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** August 24, 2026
+**Last Updated:** September 4, 2026
 **Version:** 0.4.2
 **Maintainer:** Paul Calnon
