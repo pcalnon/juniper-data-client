@@ -166,6 +166,7 @@ __all__ = [
     "FAKE_SERVICE_UPTIME_SECONDS",
     # NPZ Artifact Contract (WS-1 / juniper-data#168)
     "NPZ_SPLITS",
+    "FAKE_VAL_RATIO_DEFAULT",
     "NPZ_KEY_X",
     "NPZ_KEY_Y",
     "NPZ_KEY_Y_REG",
@@ -418,7 +419,22 @@ FAKE_SERVICE_UPTIME_SECONDS: float = 0.0
 
 # Split suffixes used for every per-split NPZ key (suffix a stem with
 # f"{stem}_{split}", e.g. f"{NPZ_KEY_X}_train").
-NPZ_SPLITS: Tuple[str, ...] = ("train", "test", "full")
+#
+# "val" is the in-loop validation partition of the three-way train/val/test
+# contract (design decision O-1). Membership here is presence-conditional --
+# validate_npz_contract skips any split a given artifact does not carry -- so
+# listing it does not require an artifact to provide it, and two-partition
+# legacy artifacts keep validating unchanged.
+#
+# "full" is retained for now. Decision 11 drops the whole *_full family from
+# the contract, but every stored artifact still carries it and consumers must
+# keep tolerating it; only the requirement is dropped, in a later change.
+NPZ_SPLITS: Tuple[str, ...] = ("train", "val", "test", "full")
+
+# Validation share used by the synthetic generators in juniper_data_client.testing.
+# Applied alongside each generator's train ratio, so the default 0.8 / 0.1 carve
+# leaves the remainder to test.
+FAKE_VAL_RATIO_DEFAULT: float = 0.1
 
 # Canonical per-split key stems.
 NPZ_KEY_X: str = "X"  # features: (N, F) tabular or (W, L, F) sequence
