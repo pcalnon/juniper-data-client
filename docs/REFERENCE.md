@@ -636,7 +636,7 @@ All numeric, string, and structural defaults used by the client and its testing 
 | `DEFAULT_*` | `DEFAULT_TIMEOUT_SECONDS=30`, `DEFAULT_RETRIES=3`, `DEFAULT_BACKOFF_FACTOR=0.5` | Constructor defaults for `JuniperDataClient` |
 | `RETRY_*` | `RETRY_STATUS_CODES_DEFAULT`, `RETRY_TOTAL_DEFAULT` | Retry/backoff tuning |
 | Generator parameter defaults | `SPIRAL_*`, `XOR_*`, `CIRCLES_*`, `GAUSSIAN_*`, `CHECKERBOARD_*` | Default values for the synthetic dataset generators in `testing/generators.py` |
-| `NPZ_*`, `FAKE_VAL_*` | `NPZ_SPLITS=("train", "val", "test", "full")`, `FAKE_VAL_RATIO_DEFAULT=0.1` | Per-split key suffixes and the fake's validation share (#187). `validate_npz_contract` skips a listed split the artifact does not carry. |
+| `NPZ_*`, `FAKE_VAL_*` | `NPZ_SPLITS=("train", "val", "test")`, `FAKE_VAL_RATIO_DEFAULT=0.1` | Per-split key suffixes and the fake's validation share (`"val"` added by #187, `"full"` removed by #190). `validate_npz_contract` skips a listed split the artifact does not carry. |
 
 ### Alignment with `juniper-data`
 
@@ -735,22 +735,25 @@ All arrays are `float32` dtype.
 | `X_test` | `(n_test, n_features)` | Test features |
 | `y_test` | `(n_test, n_classes)` | Test labels (one-hot) |
 
-`NPZ_SPLITS` is `("train", "val", "test", "full")` (#187). Fake producers default to 0.8 / 0.1 / remainder (`FAKE_VAL_RATIO_DEFAULT`). Live artifacts may omit `val`.
+`NPZ_SPLITS` is `("train", "val", "test")` — `"val"` joined in #187 and `"full"` left in #190. Fake producers default to 0.8 / 0.1 / remainder (`FAKE_VAL_RATIO_DEFAULT`). Live artifacts may omit `val`.
 
 ### Three-way `train` / `val` / `test`
 
-#187 is the client-side half of the three-way partition contract (design decision O-1; Chunk 2 of the juniper-ml partition plan, which also closes that plan's S-3). Pairs with juniper-data#353 (producer-side sizing). It is **not** a breaking validator change.
+#187 is the client-side half of the three-way partition contract (design decision O-1; Chunk 2 of the juniper-ml partition plan `notes/JUNIPER_2026-08-30_JUNIPER-ECOSYSTEM_PARTITION-IMPLEMENTATION-PLAN.md`, which also closes that plan's S-3). Pairs with juniper-data#353 (producer-side sizing). It is **not** a breaking validator change.
 
-| Surface | After #187 | Constraint |
-|---------|------------|------------|
-| `NPZ_SPLITS` | `("train", "val", "test", "full")` | `"full"` stays until decision 11 drops the `*_full` family. Stored artifacts still carry it; consumers must keep tolerating it. |
+#190 then removed `"full"` from the same constant for decision 11 (juniper-ml `notes/JUNIPER_2026-08-29_JUNIPER-ECOSYSTEM_TRAIN-EVAL-TEST-PARTITION-DESIGN.md` §9.5). That half **is** breaking, for anything that imported `"full"` or read `X_full` off the fakes.
+
+| Surface | Now (#187, then #190) | Constraint |
+|---------|-----------------------|------------|
+| `NPZ_SPLITS` | `("train", "val", "test")` | `"full"` is gone — decision 11 shipped here in #190 and producer-side in juniper-data#369. An artifact produced before 2026-09-05 still carries `*_full`; consumers keep tolerating it (present but unvalidated), nothing requires it, and nothing asserts it is absent. |
 | `validate_npz_contract` | Iterates `NPZ_SPLITS` under `if x_key in arrays` | A split the artifact does not carry is skipped. Two-partition live/legacy artifacts validate unchanged. Do not `KeyError` on missing `X_val`. |
 | `testing/generators._split_dataset` | Three contiguous, index-disjoint blocks of one shuffled array | `train` = `train_ratio` (default 0.8); `val` = `FAKE_VAL_RATIO_DEFAULT` (0.1); `test` takes the remainder so no row is dropped. |
-| `FakeDataClient` metadata | Gains `n_val` | Length identity is `n_full == n_train + n_val + n_test` (risk R-5). Pins assert `n_val > 0` so the sum cannot pass vacuously. |
+| `FakeDataClient` metadata | Gains `n_val`; `n_full` is the partition sum | Length identity is `n_full == n_train + n_val + n_test` (risk R-5). Pins assert `n_val > 0` so the sum cannot pass vacuously. Since #190 `n_full` is computed from the three counts rather than `len(X_full)`, matching `DatasetMeta.n_samples` (juniper-data#358). |
+| `FakeDataClient.get_preview` | Serves the first `n` rows of `X_train` | It read `X_full` until #190. For a shuffled tabular artifact `train` is distributionally the whole set; for a **sequence** artifact it is the chronologically earliest block, so a preview no longer samples the later rows. |
 
 **Consumer pitfall.** At the default 0.8 train ratio a 200-row fake (`n_spirals=2`, `n_points_per_spiral=100`) splits **160 / 20 / 20**, not 160 / 40. Assertions that pin `X_test`'s size against `FakeDataClient` will move. `JuniperDataClient.download_artifact_npz` still returns whatever the server wrote — this change does not alter the HTTP payload.
 
-Pins: `tests/test_fake_client.py` (`test_full_dataset_is_union_of_the_three_partitions`, `test_create_dataset_returns_metadata`); `_NPZ_KEYS` there and in `tests/test_fake_client_batch.py`.
+Pins: `tests/test_fake_client.py` (`test_metadata_total_equals_the_partition_sum` — #190 rewrote the union pin, which had compared against `X_full`, into this reference-free form — and `test_create_dataset_returns_metadata`); `tests/test_npz_val_partition.py` (`test_npz_splits_is_train_val_test`, `test_npz_splits_does_not_readmit_full`); `_NPZ_KEYS` in `tests/test_fake_client.py` and `tests/test_fake_client_batch.py`, now the six contract keys asserted by set equality.
 
 ### `validate_npz_contract`
 

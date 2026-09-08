@@ -84,7 +84,9 @@ All arrays are `float32` dtype.
 | `X_test`  | `(n_test, n_features)`  | Test features                 |
 | `y_test`  | `(n_test, n_classes)`   | Test labels (one-hot)         |
 
-`NPZ_SPLITS` is `("train", "val", "test", "full")`. `validate_npz_contract` skips a split the artifact does not carry. Fake generators emit `val` at `FAKE_VAL_RATIO_DEFAULT` (0.1) — a 200-row default spiral is **160 / 20 / 20**, not 160 / 40. `FakeDataClient` metadata includes `n_val`. See [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test).
+`NPZ_SPLITS` is `("train", "val", "test")` — `"full"` left with decision 11 (#190). `validate_npz_contract` skips a split the artifact does not carry. Fake generators emit `val` at `FAKE_VAL_RATIO_DEFAULT` (0.1) — a 200-row default spiral is **160 / 20 / 20**, not 160 / 40. `FakeDataClient` metadata includes `n_val`. See [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test).
+
+The fakes emit the six keys above and nothing else. A legacy artifact's `X_full` / `y_full` is tolerated but never required — the skip above is exactly what leaves it present-but-unvalidated.
 
 ---
 

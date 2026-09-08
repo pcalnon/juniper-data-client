@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **BREAKING — `"full"` has left `NPZ_SPLITS`; the `*_full` family is no longer part of the NPZ
+  contract** (#190; decision 11 of juniper-ml
+  `notes/JUNIPER_2026-08-29_JUNIPER-ECOSYSTEM_TRAIN-EVAL-TEST-PARTITION-DESIGN.md` §9.5). `NPZ_SPLITS`
+  is `("train", "val", "test")`, and `validate_npz_contract` now dispatches tabular-vs-sequence on
+  `X_train` rather than `X_full` — `X_train` is present in every artifact by definition, so the rank
+  probe needs no fallback and never consults a key the producer has stopped emitting; the two never
+  disagreed about rank, so a legacy artifact classifies identically. **Breaking for anything that
+  imported `"full"` from `NPZ_SPLITS`, or read `X_full` / `y_full` off the fakes** — `FakeDataClient`
+  and `testing/generators` emit the six contract keys and nothing else. **Tolerate it, never require
+  it**: `validate_npz_contract` skips any split `NPZ_SPLITS` does not list, so an `X_full` that a
+  pre-2026-09-05 artifact still carries is present-but-unvalidated, and **nothing asserts its
+  absence** — an absence assertion would convert "not required" into a requirement pointing the other
+  way and would fail against every stored artifact. Re-listing `"full"` to get it validated would
+  restore the requirement decision 11 removed, so `tests/test_npz_val_partition.py`'s
+  `test_npz_splits_does_not_readmit_full` pins it out, while that module's sequence fixture still
+  builds an `X_full` / `dt_full` channel and validates. Two derived surfaces moved with it:
+  `FakeDataClient`'s `n_full` metadata is now the partition sum (`n_train + n_val + n_test`) rather
+  than `len(X_full)`, which is what `DatasetMeta.n_samples` has been since juniper-data#358, so the
+  fake agrees with the real service instead of measuring an array the service no longer emits; and
+  `FakeDataClient.get_preview` serves the first `n` rows of `X_train` (design-doc §9.5.4 item 3's
+  stated replacement), which shifts the semantics — for a shuffled tabular artifact `train` is
+  distributionally the whole set, but for a **sequence** artifact it is the chronologically earliest
+  block, so a preview no longer samples the later rows. The producer half landed in juniper-data#369:
+  every generator's `generator_version` is now `3.0.0`, and that version is both hashed into and
+  prefixed onto the `dataset_id`, so **every `dataset_id` changes** and a cached artifact of the older
+  shape cannot be served against the current contract.
+
 ### Changed
 
 - **Retry backoff is jittered — `backoff_jitter` is passed to urllib3's `Retry`** (defect-register
@@ -53,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`"val"` joins `NPZ_SPLITS`, and the synthetic generators emit `X_val` / `y_val`** — the client-side half of the three-way `train` / `val` / `test` contract (design decision O-1, juniper-ml `notes/JUNIPER_2026-08-29_JUNIPER-ECOSYSTEM_TRAIN-EVAL-TEST-PARTITION-DESIGN.md`; Chunk 2 of `notes/JUNIPER_2026-08-30_JUNIPER-ECOSYSTEM_PARTITION-IMPLEMENTATION-PLAN.md`, which also closes that plan's **S-3** — extending the constant was owned by no chunk). `NPZ_SPLITS` becomes `("train", "val", "test", "full")`; `"full"` is deliberately retained, because decision 11 drops the `*_full` family in a later change and every stored artifact still carries it. **This is not a breaking contract change**: `validate_npz_contract` iterates `NPZ_SPLITS` under an `if x_key in arrays` guard, so a split an artifact does not carry is skipped, and two-partition legacy artifacts validate exactly as before. `_split_dataset` in `juniper_data_client/testing/generators.py` now cuts three contiguous, index-disjoint blocks — the same by-construction disjointness the real generators rely on — sized by each generator's `train_ratio` plus the new `FAKE_VAL_RATIO_DEFAULT` (0.1), with `test` taking the remainder so no row is dropped. `FakeDataClient` metadata gains `n_val`. **Consequence for consumers of the fakes**: at the default 0.8 train ratio a 200-row fake now splits 160 / 20 / 20 rather than 160 / 40, so any assertion pinning `X_test`'s size changes. Two assertions that read `n_full == n_train + n_test` were **correct before and wrong now** — the identity spans three partitions — and both were rewritten to sum all three, each with an explicit `n_val > 0` guard so the sum cannot pass vacuously if `val` ever regresses to empty.
+- **`"val"` joins `NPZ_SPLITS`, and the synthetic generators emit `X_val` / `y_val`** — the client-side half of the three-way `train` / `val` / `test` contract (design decision O-1, juniper-ml `notes/JUNIPER_2026-08-29_JUNIPER-ECOSYSTEM_TRAIN-EVAL-TEST-PARTITION-DESIGN.md`; Chunk 2 of `notes/JUNIPER_2026-08-30_JUNIPER-ECOSYSTEM_PARTITION-IMPLEMENTATION-PLAN.md`, which also closes that plan's **S-3** — extending the constant was owned by no chunk). `NPZ_SPLITS` is `("train", "val", "test")`. #187 added `"val"` alongside a then-retained `"full"`, and **`"full"` left again inside this same unreleased window** — #190 dropped it for decision 11 (see the `### Removed` entry above), so the 4-tuple never reached a release and the 3-tuple is the shipped shape. **Adding `"val"` is not a breaking contract change**: `validate_npz_contract` iterates `NPZ_SPLITS` under an `if x_key in arrays` guard, so a split an artifact does not carry is skipped, and two-partition legacy artifacts validate exactly as before. `_split_dataset` in `juniper_data_client/testing/generators.py` now cuts three contiguous, index-disjoint blocks — the same by-construction disjointness the real generators rely on — sized by each generator's `train_ratio` plus the new `FAKE_VAL_RATIO_DEFAULT` (0.1), with `test` taking the remainder so no row is dropped. `FakeDataClient` metadata gains `n_val`. **Consequence for consumers of the fakes**: at the default 0.8 train ratio a 200-row fake now splits 160 / 20 / 20 rather than 160 / 40, so any assertion pinning `X_test`'s size changes. Two assertions that read `n_full == n_train + n_test` were **correct before and wrong now** — the identity spans three partitions — and both were rewritten to sum all three, each with an explicit `n_val > 0` guard so the sum cannot pass vacuously if `val` ever regresses to empty.
 - **7 missing generator-name constants + live-registry parity cross-check (W-9).** `constants.py` gains `GENERATOR_EQUITIES`, `GENERATOR_EQUITIES_SEQ`, `GENERATOR_MULTI_SINE`, `GENERATOR_MACKEY_GLASS`, `GENERATOR_AR_P`, `GENERATOR_IRREGULAR_SINE`, and `GENERATOR_DELAY_PRODUCT` (each with a paired `GENERATOR_DESCRIPTION_*`), covering the equities pair and the five WS-1 sequence generators the client lacked since juniper-data 0.8/0.9. Critically, `tests/test_generator_parity.py`'s `EXPECTED_SERVER_GENERATORS` — previously a stale hand-kept mirror that let the reverse parity assertion pass vacuously — is now cross-checked against the **live** `juniper_data.api.routes.generators.GENERATOR_REGISTRY` whenever juniper-data is importable (skips when it is not), so the mirror can no longer drift silently. CLI experimentation plan §11 register item W-9 (juniper-ml `notes/JUNIPER_2026-07-29_JUNIPER-ECOSYSTEM_CASCOR-RECURRENCE-CLI-TEST-VALIDATION-EXPERIMENTATION-PLAN.md`).
 - **Blocking per-file coverage gate — Phase C / C-2 of the ecosystem per-file-coverage rollout.** The `unit-tests` CI job (a required check) now emits `coverage.json` and runs `juniper-coverage-gap-map --coverage-json coverage.json --enforce` (from `juniper-ci-tools>=0.6.0,<0.7.0`), failing the build when any source file drops below 90% statement coverage or any packaged sub-module below 95% pooled coverage. To clear the bar, `client.py` was lifted from 89.56% to 100% with 8 targeted `responses`-based tests in `tests/test_client_coverage_gaps.py` covering the previously-uncovered paths: the `_resolve_api_key_from_env` `*_FILE` failure branches (unreadable file, empty secret), the `_request` non-JSON error-body fallback, the `wait_for_ready` polling loop (ready + timeout), and the optional-argument branches of `create_dataset` / `create_spiral_dataset` / `batch_update_tags`. See juniper-ml `notes/JUNIPER_ECOSYSTEM_PER_FILE_COVERAGE_ROLLOUT_SCOPING_2026-06-30.md`.
 
