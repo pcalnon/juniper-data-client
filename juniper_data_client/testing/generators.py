@@ -82,7 +82,7 @@ def _split_dataset(
     rng: np.random.Generator,
     val_ratio: float = FAKE_VAL_RATIO_DEFAULT,
 ) -> Dict[str, np.ndarray]:
-    """Shuffle and split features/labels into train/val/test/full splits.
+    """Shuffle and split features/labels into train/val/test partitions.
 
     The three partitions are cut as contiguous blocks of one shuffled array, so
     they are index-disjoint by construction -- the same property the real
@@ -98,7 +98,7 @@ def _split_dataset(
         val_ratio: Fraction of samples used for in-loop validation.
 
     Returns:
-        Dictionary with keys X_train, y_train, X_val, y_val, X_test, y_test,
+        Dictionary with keys X_train, y_train, X_val, y_val, X_test, y_test.
     """
     n_samples = X.shape[0]
     indices = rng.permutation(n_samples)
