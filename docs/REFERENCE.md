@@ -2,7 +2,7 @@
 
 ## juniper-data-client Technical Reference
 
-**Version:** 0.4.2
+**Version:** 0.5.0
 **Status:** Active
 **Last Updated:** September 4, 2026
 **Project:** Juniper - Dataset Service Client Library
@@ -841,5 +841,5 @@ isort --check-only juniper_data_client  # Import order
 ---
 
 **Last Updated:** September 4, 2026
-**Version:** 0.4.2
+**Version:** 0.5.0
 **Maintainer:** Paul Calnon

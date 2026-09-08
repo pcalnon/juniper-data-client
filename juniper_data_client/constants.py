@@ -9,7 +9,7 @@ Project: Juniper
 Sub-Project: juniper-data-client
 Application: JuniperDataClient
 Author: Paul Calnon
-Version: 0.4.2
+Version: 0.5.0
 License: MIT License
 """
 

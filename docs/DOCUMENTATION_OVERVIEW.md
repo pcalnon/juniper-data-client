@@ -2,7 +2,7 @@
 
 ## Navigation Guide to juniper-data-client Documentation
 
-**Version:** 0.4.2
+**Version:** 0.5.0
 **Status:** Active
 **Last Updated:** September 4, 2026
 **Project:** Juniper - Dataset Service Client Library
@@ -74,7 +74,7 @@ juniper-ml ──meta-package──> juniper-data-client
 
 ### Compatibility
 
-This client is **0.4.x** (`pip install juniper-data-client`; pin `>=0.4.2,<0.5.0` or via `juniper-ml[data]`). Server and consumer versions live in those repos — do not copy a stale matrix from this index.
+This client is **0.5.x** (`pip install juniper-data-client`; pin `>=0.5.0,<0.6.0` or via `juniper-ml[clients]`). Server and consumer versions live in those repos — do not copy a stale matrix from this index.
 
 Construction-time URL guards, exception context (`status_code` / `detail` / `response`), `JuniperDataContractError`, idempotent-only retries, and the three-way `train` / `val` / `test` NPZ split (#187) are documented in [REFERENCE.md](REFERENCE.md).
 
@@ -99,7 +99,7 @@ Construction-time URL guards, exception context (`status_code` / `detail` / `res
 ---
 
 **Last Updated:** September 4, 2026
-**Version:** 0.4.2
+**Version:** 0.5.0
 **Maintainer:** Paul Calnon
 
 > See the [Juniper Ecosystem Guide](../CLAUDE.md) for the full project map and dependency graph.

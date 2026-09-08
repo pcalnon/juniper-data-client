@@ -4,7 +4,7 @@ Project:     Juniper
 Sub-Project: juniper-data-client
 Application: tests
 Author:      Paul Calnon
-Version:     0.4.2
+Version:     0.5.0
 License:     MIT License
 
 Tests for ``util/memory_budget_check.py`` (P2 of the shared-session-memory plan).
