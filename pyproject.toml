@@ -41,6 +41,10 @@ test = [
     # ContextVar source. Listed under [test] (not as a hard dep) so
     # standalone notebook users don't pay the install cost.
     "juniper-observability>=0.1.1",
+    # tests/test_main_verify_catchup_base.py parses .github/workflows/main-verify.yml
+    # to pin the sequence-safety verdict-step name. Without this the file is a
+    # COLLECTION ERROR (`import yaml`), not a skip -- i.e. red CI, not silent.
+    "pyyaml>=6.0.1",
 ]
 observability = [
     # METRICS-MON R4.6: opt-in to outbound X-Request-ID propagation
