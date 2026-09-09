@@ -615,7 +615,7 @@ jobs:
           echo "║       juniper-data-client - pip-audit Dependency Scan      ║"
           echo "╚════════════════════════════════════════════════════════════╝"
           pip install -e ".[test]"
-          pip freeze | grep -ivE "^juniper[-_]data[-_]client" > reports/security/requirements.txt
+          pip list --format=freeze --exclude juniper-data-client > reports/security/requirements.txt
           pip-audit -r reports/security/requirements.txt --strict --desc on \
             || (echo "::error::Critical/High vulnerabilities found in dependencies" && exit 1)
 
