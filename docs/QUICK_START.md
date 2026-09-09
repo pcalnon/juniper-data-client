@@ -2,7 +2,7 @@
 
 ## Get juniper-data-client Working in 5 Minutes
 
-**Version:** 0.4.2
+**Version:** 0.5.0
 **Status:** Active
 **Last Updated:** September 4, 2026
 **Project:** Juniper - Dataset Service Client Library
@@ -166,5 +166,5 @@ The test suite includes a `FakeDataClient` for testing consumers without a runni
 ---
 
 **Last Updated:** September 4, 2026
-**Version:** 0.4.2
+**Version:** 0.5.0
 **Status:** Active

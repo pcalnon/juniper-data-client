@@ -9,7 +9,7 @@ from juniper_data_client.constants import ContractKind
 from juniper_data_client.contract import validate_npz_contract
 from juniper_data_client.exceptions import JuniperDataClientError, JuniperDataConfigurationError, JuniperDataConnectionError, JuniperDataContractError, JuniperDataNotFoundError, JuniperDataTimeoutError, JuniperDataValidationError
 
-__version__ = "0.4.2"
+__version__ = "0.5.0"
 
 __all__ = [
     "JuniperDataClient",
