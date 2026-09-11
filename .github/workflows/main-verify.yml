@@ -125,7 +125,7 @@ jobs:
           python -m pip install --upgrade "pip>=26.1.1"
           # Packaged single source of truth for the two screens (rollout Wave 0/1); the
           # >=0.8.0 floor is the release that first ships the console scripts + --scope.
-          pip install "juniper-ci-tools>=0.8.0,<0.9.0"
+          pip install "juniper-ci-tools>=0.8.0,<0.10.0"
 
       - name: Resolve catch-up base
         id: base
