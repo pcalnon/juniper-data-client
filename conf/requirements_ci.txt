@@ -144,7 +144,7 @@ starlette==1.6.0
 stevedore==5.9.1
 tomli==2.4.1
 tomli_w==1.2.0
-types-requests==2.33.0.20260712
+types-requests==2.33.0.20260906
 typing_extensions==4.16.0
 typing-inspection==0.4.4
 urllib3==2.7.0
