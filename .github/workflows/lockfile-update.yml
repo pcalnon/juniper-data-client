@@ -129,8 +129,11 @@ jobs:
       # is harmless under a squash merge -- GitHub authors (and signs) the squash commit
       # itself -- but this repo also allows merge commits and rebase merges, and both of those
       # replay the original commit onto main, where required_signatures rejects it. The defect
-      # has never fired only because every run so far found the lockfile already current
-      # (run 34126070406, 2026-09-07, took the "no commit needed" branch).
+      # has never fired here because the repo tracks no requirements.lock, not because a
+      # lockfile was current: every run takes the "No requirements.lock" branches (run
+      # 34126070406, 2026-09-07, logged "No requirements.lock in this repo -- skipping
+      # regeneration" and "No requirements.lock to commit -- skipping"). The signed path stays
+      # unexercised until a lockfile is committed.
       #
       # CROSS_REPO_DISPATCH_TOKEN stays the identity so the resulting commit still re-triggers
       # CI (GITHUB_TOKEN would not). Mirrors juniper-cascor / juniper-data / juniper-canopy,
