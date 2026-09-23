@@ -25,7 +25,7 @@
 #
 #    PACKAGED SCREENS (rollout Wave 0/1): unlike the two juniper-ml/juniper-cascor pioneers
 #    (which invoke an in-repo util/sequence_safety/*.py tree), this repo consumes the screens
-#    from the PUBLISHED juniper-ci-tools PyPI package (>=0.8.0,<0.9.0) via the
+#    from the PUBLISHED juniper-ci-tools PyPI package (>=0.9.0,<0.10.0) via the
 #    `juniper-symbol-loss-check` / `juniper-docs-additions-check` console scripts -- one
 #    source of truth, no inline copy to drift.
 #
