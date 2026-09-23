@@ -18,10 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is. The second and third steps run even when an earlier one failed (`!cancelled()`), so one bad
   target does not hide the others, and the job still fails. The token and the sha now reach the
   shell through `env:` instead of being interpolated into the script, and the payload is built
-  with `jq`. It is byte-identical to the old literal. **Not closed:** `/dispatches` returns 204
-  whether or not any workflow in the target listens for the event type, so a renamed or missing
-  listener still passes. All three receivers declare `repository_dispatch: types:
-  [data-client-updated]` today, and each shows a `data-client-updated` run from 2026-09-23.
+  with `jq`, into a variable first so a jq failure stops the step. It is byte-identical to the
+  old literal. **Not closed:** `/dispatches` returns 204 whether or not any workflow in the
+  target listens for the event type, so a renamed or missing listener still passes. All three
+  receivers declare `repository_dispatch: types: [data-client-updated]` today, and each shows a
+  `data-client-updated` run from 2026-09-23. A check that the run appeared is not attempted:
+  each receiver's CI cancels most dispatch runs when its own pushes to `main` land (#213), so a
+  run appearing would not show the receiver was tested.
 
 - **`lockfile-update.yml` committed the regenerated lockfile UNSIGNED**, which can block the merge it
   exists to enable. The `required_signatures` ruleset is `~DEFAULT_BRANCH`-scoped, so the plain

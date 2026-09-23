@@ -789,13 +789,15 @@ jobs:
   # happened as a green step, and the downstream CI this job exists to trigger silently never ran.
   # `--fail-with-body` fails the step and prints GitHub's error. The later steps run even when an
   # earlier one failed (`!cancelled()`), so one bad target does not hide the other two, and the job
-  # still fails. The token and the sha reach the shell only through `env:`.
+  # still fails. The token and the sha reach the shell only through `env:`, and the payload is
+  # built into a variable first, so a jq failure stops the step instead of sending an empty body.
   #
   # Residual: /dispatches returns 204 whether or not any workflow in the target listens for the
-  # event type, so a renamed or missing `data-client-updated` listener still passes here. The
-  # juniper-data sender closes that by waiting for the consumer's run (juniper-recurrence#178);
-  # here the three targets also receive other dispatch types, so a run-appeared check would be
-  # weaker, and it is not attempted.
+  # event type, so a renamed or missing `data-client-updated` listener still passes here.
+  # juniper-data's release sender closes that gap by waiting for the consumer's run to appear
+  # (juniper-data#431). It is not attempted here, because a run appearing would not show the
+  # receiver was tested: each receiver's CI puts a dispatch run in the same concurrency group as
+  # its own pushes to main, and most of these runs are cancelled that way (#213).
   notify-downstream:
     name: Notify Downstream Repos
     runs-on: ubuntu-latest
@@ -809,28 +811,31 @@ jobs:
       - name: Dispatch to juniper-data
         run: |
           set -euo pipefail
+          payload="$(jq -nc --arg s "${SOURCE_SHA}" '{event_type: "data-client-updated", client_payload: {source: "juniper-data-client", sha: $s}}')"
           curl --fail-with-body --silent --show-error -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${TOKEN}" \
             https://api.github.com/repos/pcalnon/juniper-data/dispatches \
-            -d "$(jq -nc --arg s "${SOURCE_SHA}" '{event_type: "data-client-updated", client_payload: {source: "juniper-data-client", sha: $s}}')"
+            -d "${payload}"
 
       - name: Dispatch to juniper-cascor
         if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
+          payload="$(jq -nc --arg s "${SOURCE_SHA}" '{event_type: "data-client-updated", client_payload: {source: "juniper-data-client", sha: $s}}')"
           curl --fail-with-body --silent --show-error -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${TOKEN}" \
             https://api.github.com/repos/pcalnon/juniper-cascor/dispatches \
-            -d "$(jq -nc --arg s "${SOURCE_SHA}" '{event_type: "data-client-updated", client_payload: {source: "juniper-data-client", sha: $s}}')"
+            -d "${payload}"
 
       - name: Dispatch to juniper-canopy
         if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
+          payload="$(jq -nc --arg s "${SOURCE_SHA}" '{event_type: "data-client-updated", client_payload: {source: "juniper-data-client", sha: $s}}')"
           curl --fail-with-body --silent --show-error -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${TOKEN}" \
             https://api.github.com/repos/pcalnon/juniper-canopy/dispatches \
-            -d "$(jq -nc --arg s "${SOURCE_SHA}" '{event_type: "data-client-updated", client_payload: {source: "juniper-data-client", sha: $s}}')"
+            -d "${payload}"
