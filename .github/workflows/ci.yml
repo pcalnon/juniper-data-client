@@ -793,11 +793,13 @@ jobs:
   # built into a variable first, so a jq failure stops the step instead of sending an empty body.
   #
   # Residual: /dispatches returns 204 whether or not any workflow in the target listens for the
-  # event type, so a renamed or missing `data-client-updated` listener still passes here.
-  # juniper-data's release sender closes that gap by waiting for the consumer's run to appear
-  # (juniper-data#431). It is not attempted here, because a run appearing would not show the
-  # receiver was tested: each receiver's CI puts a dispatch run in the same concurrency group as
-  # its own pushes to main, and most of these runs are cancelled that way (#213).
+  # event type, so a renamed or missing `data-client-updated` listener still passes here. A check
+  # that the receiver started a run would catch that; juniper-data#431 adds one to juniper-data's
+  # release sender. It is not added here, where the fix is #211's silent failure only, and #213
+  # tracks what the receivers do with the event. A started run is not a tested client either.
+  # juniper-data's and juniper-cascor's CI install this client from git main, so a dispatch run
+  # cancelled by one of their own later pushes is covered by the push run that cancelled it.
+  # juniper-canopy's CI has no git install of this client, so no run there tests the pushed one.
   notify-downstream:
     name: Notify Downstream Repos
     runs-on: ubuntu-latest

@@ -22,9 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   old literal. **Not closed:** `/dispatches` returns 204 whether or not any workflow in the
   target listens for the event type, so a renamed or missing listener still passes. All three
   receivers declare `repository_dispatch: types: [data-client-updated]` today, and each shows a
-  `data-client-updated` run from 2026-09-23. A check that the run appeared is not attempted:
-  each receiver's CI cancels most dispatch runs when its own pushes to `main` land (#213), so a
-  run appearing would not show the receiver was tested.
+  `data-client-updated` run from 2026-09-23. A check that the receiver started a run would catch
+  a missing listener (juniper-data#431 adds one to juniper-data's release sender); it is not
+  added here, and #213 tracks the receivers. A started run is not a tested client either:
+  juniper-data's and juniper-cascor's CI install this client from git `main`, so a dispatch run
+  that one of their own later pushes cancels is covered by the push run that cancelled it, while
+  juniper-canopy's CI has no git install of this client, so no run there tests the pushed one.
 
 - **`lockfile-update.yml` committed the regenerated lockfile UNSIGNED**, which can block the merge it
   exists to enable. The `required_signatures` ruleset is `~DEFAULT_BRANCH`-scoped, so the plain
