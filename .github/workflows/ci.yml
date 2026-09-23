@@ -784,33 +784,60 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════════════════════════
   # Notify Downstream: Trigger CI in dependent service repos (main push only)
   # ═══════════════════════════════════════════════════════════════════════════════════════════════
+  # Each dispatch FAILS LOUDLY (#211). A bare `curl -X POST` exits 0 on an HTTP error, so a revoked
+  # or under-scoped CROSS_REPO_DISPATCH_TOKEN (401 / 403 / 404) reported a dispatch that never
+  # happened as a green step, and the downstream CI this job exists to trigger silently never ran.
+  # `--fail-with-body` fails the step and prints GitHub's error. The later steps run even when an
+  # earlier one failed (`!cancelled()`), so one bad target does not hide the other two, and the job
+  # still fails. The token and the sha reach the shell only through `env:`, and the payload is
+  # built into a variable first, so a jq failure stops the step instead of sending an empty body.
+  #
+  # Residual: /dispatches returns 204 whether or not any workflow in the target listens for the
+  # event type, so a renamed or missing `data-client-updated` listener still passes here. A check
+  # that the receiver started a run would catch that; juniper-data#431 adds one to juniper-data's
+  # release sender. It is not added here, where the fix is #211's silent failure only, and #213
+  # tracks what the receivers do with the event. A started run is not a tested client either.
+  # juniper-data's and juniper-cascor's CI install this client from git main, so a dispatch run
+  # cancelled by one of their own later pushes is covered by the push run that cancelled it.
+  # juniper-canopy's CI has no git install of this client, so no run there tests the pushed one.
   notify-downstream:
     name: Notify Downstream Repos
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: [required-checks]
+    env:
+      TOKEN: ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}
+      SOURCE_SHA: ${{ github.sha }}
 
     steps:
       - name: Dispatch to juniper-data
         run: |
-          curl -X POST \
+          set -euo pipefail
+          payload="$(jq -nc --arg s "${SOURCE_SHA}" '{event_type: "data-client-updated", client_payload: {source: "juniper-data-client", sha: $s}}')"
+          curl --fail-with-body --silent --show-error -X POST \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}" \
+            -H "Authorization: Bearer ${TOKEN}" \
             https://api.github.com/repos/pcalnon/juniper-data/dispatches \
-            -d '{"event_type":"data-client-updated","client_payload":{"source":"juniper-data-client","sha":"${{ github.sha }}"}}'
+            -d "${payload}"
 
       - name: Dispatch to juniper-cascor
+        if: ${{ !cancelled() }}
         run: |
-          curl -X POST \
+          set -euo pipefail
+          payload="$(jq -nc --arg s "${SOURCE_SHA}" '{event_type: "data-client-updated", client_payload: {source: "juniper-data-client", sha: $s}}')"
+          curl --fail-with-body --silent --show-error -X POST \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}" \
+            -H "Authorization: Bearer ${TOKEN}" \
             https://api.github.com/repos/pcalnon/juniper-cascor/dispatches \
-            -d '{"event_type":"data-client-updated","client_payload":{"source":"juniper-data-client","sha":"${{ github.sha }}"}}'
+            -d "${payload}"
 
       - name: Dispatch to juniper-canopy
+        if: ${{ !cancelled() }}
         run: |
-          curl -X POST \
+          set -euo pipefail
+          payload="$(jq -nc --arg s "${SOURCE_SHA}" '{event_type: "data-client-updated", client_payload: {source: "juniper-data-client", sha: $s}}')"
+          curl --fail-with-body --silent --show-error -X POST \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${{ secrets.CROSS_REPO_DISPATCH_TOKEN }}" \
+            -H "Authorization: Bearer ${TOKEN}" \
             https://api.github.com/repos/pcalnon/juniper-canopy/dispatches \
-            -d '{"event_type":"data-client-updated","client_payload":{"source":"juniper-data-client","sha":"${{ github.sha }}"}}'
+            -d "${payload}"
