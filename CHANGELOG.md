@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`validate_npz_contract` closes the W1.4 validator gaps and enforces `float32`** (juniper-ml
+  `notes/JUNIPER_2026-10-03_JUNIPER-RECURRENCE_EQUITIES-END-TO-END-AUDIT-AND-DEVELOPMENT-PLAN.md`
+  v1.3.0, item W1.4, findings F-P3 and F-S3). The audit found the advertised full-contract gate
+  partial: `dt` was checked for shape, sign and a zero first column but not finiteness,
+  `target_dt_*` was ignored, and no dtype was enforced. Four rules join it. Each is
+  presence-conditional and raises `JuniperDataContractError` with a message naming the key and the
+  rule. **`dt_*` must be finite**, checked before the sign test, so `-inf` is reported as non-finite
+  rather than as a negative gap and `+inf` / `NaN` no longer pass. **`target_dt_*`**, if present,
+  must be `(W,)`, finite and `>= 0`. **`seq_lengths_*`**, if present, must be `(W,)`, an integer
+  dtype, and in `[1, L]`, where `L` is the matching `X_*`'s window length. **`X_*` / `y_*` /
+  `y_reg_*` must be `float32`** in every partition present, **on the 2-D path too**, so the tabular
+  path is no longer "no further checks". The `float32` rule **applies the plan's recommended R2
+  pending the owner's ruling (the alternative is documented dtype tolerance)**. It compares the
+  scalar type, so a big-endian `>f4` array passes, and it deliberately does not reach `dt`, `t`,
+  `target_dt`, the masks, `date`, `window_end_date`, `ticker_code` or `ticker_vocab`, which the
+  producer emits in their own dtypes. A legacy `X_full` / `y_full` pair is still neither required
+  nor checked. **Stricter, so breaking for any caller that fed it `float64` features or targets.**
+  Measured against what the consumers actually feed it
+  (`util/ad-hoc/2026-10-05_w1_4_downstream_census_probe.py`: 24 rows, 0 surprises): every offline
+  juniper-data generator, the juniper-data e2e test that runs this validator, juniper-canopy's
+  fake-vs-real agreement test and juniper-recurrence's `synthetic_npz_arrays` fixture all still
+  pass. Pins: `tests/test_contract.py`, with one test per new rejection, conforming three-partition
+  sequence and flat artifacts, and each new rule mutation-checked.
+
 ### Fixed
 
 - **`ci.yml`'s `notify-downstream` job reported a failed dispatch as success** (#211). Its three

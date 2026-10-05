@@ -165,7 +165,7 @@ except JuniperDataTimeoutError:
 | `JuniperDataConnectionError`           | Service not running        | Start juniper-data: `make up` in juniper-deploy or run natively |
 | `JuniperDataValidationError` on create | Invalid generator params   | Check `client.get_generator_schema(name)`; use `exc.status_code` (400 vs 422) and `exc.detail` |
 | `JuniperDataNotFoundError` on download | Dataset ID expired/invalid | Re-create the dataset; artifacts may have been cleaned          |
-| `JuniperDataContractError` after download | Sequence NPZ failed Δt/mask rules | Call `validate_npz_contract(arrays)` and inspect `str(exc)`     |
+| `JuniperDataContractError` after download | Non-`float32` `X` / `y` / `y_reg`, or a sequence NPZ failed a Δt / `target_dt` / `seq_lengths` / mask rule | Call `validate_npz_contract(arrays)` and inspect `str(exc)`; it names the key and the rule |
 | Duplicate datasets after a 5xx POST    | Mutations are not auto-retried | Expected: only HEAD/GET/PUT retry. Use a dataset `name` for server-side dedupe. |
 | NPZ arrays have wrong shape            | Generator params mismatch  | Verify `n_points`, `train_ratio` params                         |
 | `X_test` is 20 rows in `FakeDataClient`, not 40 | #187 carves a 0.1 `val` share from the former test remainder | Sum `n_train + n_val + n_test`; do not pin test size |
