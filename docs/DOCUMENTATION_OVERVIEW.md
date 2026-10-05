@@ -4,7 +4,7 @@
 
 **Version:** 0.5.0
 **Status:** Active
-**Last Updated:** September 4, 2026
+**Last Updated:** October 5, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -32,6 +32,7 @@
 | **See version history**         | [CHANGELOG.md](../CHANGELOG.md)                    | Root     |
 | **Quick-reference dev tasks**   | [DEVELOPER_CHEATSHEET.md](DEVELOPER_CHEATSHEET.md) | docs/    |
 | **Run tests**                   | [AGENTS.md](../AGENTS.md)                          | Root     |
+| **See why an NPZ failed `validate_npz_contract`** | [REFERENCE.md § validate_npz_contract](REFERENCE.md#validate_npz_contract) | docs/ |
 
 ---
 
@@ -85,7 +86,7 @@ Construction-time URL guards, exception context (`status_code` / `detail` / `res
 ### Upstream Service
 
 - **juniper-data** -- [API Reference](https://github.com/pcalnon/juniper-data) (service that this client calls)
-- **Data contract**: NPZ artifacts with keys `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test` (all `float32`). `val` is presence-conditional — see [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test).
+- **Data contract**: NPZ artifacts with keys `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test` (`X` / `y` / `y_reg` are `float32`). `validate_npz_contract` rejects any other dtype on those arrays, on the tabular path and the sequence path. `val` is presence-conditional — see [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test) and [§ validate_npz_contract](REFERENCE.md#validate_npz_contract).
 
 ### Downstream Consumers
 
@@ -98,7 +99,7 @@ Construction-time URL guards, exception context (`status_code` / `detail` / `res
 
 ---
 
-**Last Updated:** September 4, 2026
+**Last Updated:** October 5, 2026
 **Version:** 0.5.0
 **Maintainer:** Paul Calnon
 

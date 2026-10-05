@@ -4,7 +4,7 @@
 
 **Version:** 0.5.0
 **Status:** Active
-**Last Updated:** September 4, 2026
+**Last Updated:** October 5, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -27,8 +27,10 @@
 - [Constants Reference](#constants-reference)
 - [CI/CD Reference](#cicd-reference)
 - [NPZ Artifact Schema](#npz-artifact-schema)
+- [Sequence keys (3-D `X`)](#sequence-keys-3-d-x)
 - [Three-way `train` / `val` / `test`](#three-way-train--val--test)
 - [`validate_npz_contract`](#validate_npz_contract)
+- [Rejection messages](#rejection-messages)
 - [HTTP Behavior](#http-behavior)
 - [Environment Variables](#environment-variables)
 - [Test Markers and Commands](#test-markers-and-commands)
@@ -48,7 +50,7 @@ Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it
 
 ### Data Contract
 
-NPZ artifacts with keys: `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test` (all `float32`). A stored artifact produced before 2026-09-05 also carries `X_full` / `y_full`; readers tolerate them and no reader requires them (decision 11). `val` is presence-conditional — see [Three-way `train` / `val` / `test`](#three-way-train--val--test).
+NPZ artifacts with keys: `X_train`, `y_train`, `X_val`, `y_val`, `X_test`, `y_test` (`X` / `y` / `y_reg` are `float32`, and [`validate_npz_contract`](#validate_npz_contract) rejects any other dtype on both the 2-D and 3-D paths). A stored artifact produced before 2026-09-05 also carries `X_full` / `y_full`; readers tolerate them and no reader requires them (decision 11). `val` is presence-conditional — see [Three-way `train` / `val` / `test`](#three-way-train--val--test).
 
 ### Environment Variables
 
@@ -724,7 +726,9 @@ Rollout and rationale: [juniper-ml#434](https://github.com/pcalnon/juniper-ml/is
 
 ## NPZ Artifact Schema
 
-All arrays are `float32` dtype.
+`X_*`, `y_*`, and `y_reg_*` are `float32`. [`validate_npz_contract`](#validate_npz_contract) enforces that dtype on every partition present (`train`, `val`, `test`), for a 2-D artifact and a 3-D one. A partition the artifact does not carry is skipped. No other key is required to be `float32`.
+
+### Tabular keys
 
 | Key | Shape | Description |
 |-----|-------|-------------|
@@ -735,7 +739,24 @@ All arrays are `float32` dtype.
 | `X_test` | `(n_test, n_features)` | Test features |
 | `y_test` | `(n_test, n_classes)` | Test labels (one-hot) |
 
+`y_reg_{split}`, when present, must also be `float32`. Its shape is not part of this gate.
+
 `NPZ_SPLITS` is `("train", "val", "test")` — `"val"` joined in #187 and `"full"` left in #190. Fake producers default to 0.8 / 0.1 / remainder (`FAKE_VAL_RATIO_DEFAULT`). Live artifacts may omit `val`.
+
+### Sequence keys (3-D `X`)
+
+These apply when `X_train` is `(W, L, F)`. `{split}` is each of `train` / `val` / `test` that carries `X_{split}`. A split with no `X_{split}` is not sequence-checked. An omitted optional key is skipped, never required.
+
+| Key | Shape the validator requires | Rule |
+|-----|------------------------------|------|
+| `dt_{split}` | `(W, L)` | Required unless `t_{split}` is present. After the shape check: finite, then `>= 0`, then column 0 is `0`. `-inf` / `NaN` / `+inf` are reported as non-finite, not as a negative gap or a first-column breach. Dtype is not checked. |
+| `t_{split}` | not shape-checked on its own | Required unless `dt_{split}` is present. When both are present they must agree within `dt_atol` (default `1e-6`): the comparison uses `0` in column 0 and `diff(t)` after that. `t` itself is not finiteness-checked. |
+| `target_dt_{split}` | `(W,)` | Optional. Finite and `>= 0`. Zero is allowed. A `(W, 1)` column is rejected. Dtype is not checked. |
+| `seq_lengths_{split}` | `(W,)` | Optional. An integer dtype. `bool` and floating dtypes are refused, even when every value is a whole number. Every value in `[1, L]`, where `L` is that split's `X` window length (`X.shape[1]`). |
+| `observed_mask_{split}`, `padding_mask_{split}` | `(W, L)` | Optional. Every value is `0` or `1`. Where both masks are present, `observed_mask` must be `0` wherever `padding_mask == 0`. |
+| `date_{split}`, `window_end_date_{split}`, `ticker_code_{split}`, `ticker_vocab` | not checked | The gate does not read them. |
+
+A zero-window partition (`W == 0`) passes the per-window comparisons. A legacy `*_full` array is not a partition: nothing here requires it, checks it, or forbids it, including a `float64` `X_full` or a `dt_full` the sequence rules would refuse. Missing `X_train` raises `KeyError` from the rank probe; it is not a `JuniperDataContractError`.
 
 ### Three-way `train` / `val` / `test`
 
@@ -746,7 +767,7 @@ All arrays are `float32` dtype.
 | Surface | Now (#187, then #190) | Constraint |
 |---------|-----------------------|------------|
 | `NPZ_SPLITS` | `("train", "val", "test")` | `"full"` is gone — decision 11 shipped here in #190 and producer-side in juniper-data#369. An artifact produced before 2026-09-05 still carries `*_full`; consumers keep tolerating it (present but unvalidated), nothing requires it, and nothing asserts it is absent. |
-| `validate_npz_contract` | Iterates `NPZ_SPLITS` under `if x_key in arrays` | A split the artifact does not carry is skipped. Two-partition live/legacy artifacts validate unchanged. Do not `KeyError` on missing `X_val`. |
+| `validate_npz_contract` | Iterates `NPZ_SPLITS` under `if x_key in arrays` | A split the artifact does not carry is skipped, so a missing `X_val` does not `KeyError`. The `float32` rule still applies to every `X` / `y` / `y_reg` partition that is present, including a two-partition artifact. |
 | `testing/generators._split_dataset` | Three contiguous, index-disjoint blocks of one shuffled array | `train` = `train_ratio` (default 0.8); `val` = `FAKE_VAL_RATIO_DEFAULT` (0.1); `test` takes the remainder so no row is dropped. |
 | `FakeDataClient` metadata | Gains `n_val`; `n_full` is the partition sum | Length identity is `n_full == n_train + n_val + n_test` (risk R-5). Pins assert `n_val > 0` so the sum cannot pass vacuously. Since #190 `n_full` is computed from the three counts rather than `len(X_full)`, matching `DatasetMeta.n_samples` (juniper-data#358). |
 | `FakeDataClient.get_preview` | Serves the first `n` rows of `X_train` | It read `X_full` until #190. For a shuffled tabular artifact `train` is distributionally the whole set; for a **sequence** artifact it is the chronologically earliest block, so a preview no longer samples the later rows. |
@@ -772,9 +793,36 @@ kind: ContractKind = validate_npz_contract(arrays)  # "tabular" or "sequence"
 
 **Raises:** `JuniperDataContractError` (also a `ValueError`) when `X` is neither 2-D nor 3-D, when an `X` / `y` / `y_reg` partition is not `float32`, or when any 3-D rule fails. Contract violations are detected locally after download, so `status_code` stays `None`. The return type is `ContractKind` (`Literal["tabular", "sequence"]`); `CONTRACT_KIND_TABULAR` / `CONTRACT_KIND_SEQUENCE` are `Final[ContractKind]`.
 
-**Scope of the W1.4 rules** (findings F-P3 / F-S3 and ruling R2 of juniper-ml `notes/JUNIPER_2026-10-03_JUNIPER-RECURRENCE_EQUITIES-END-TO-END-AUDIT-AND-DEVELOPMENT-PLAN.md`). Every rule is presence-conditional: a partition or optional key the artifact does not carry is skipped, never required. The dtype rule covers `X` / `y` / `y_reg` only. `dt`, `t`, `target_dt`, the masks, `date`, `window_end_date`, `ticker_code` and `ticker_vocab` keep the dtypes the producer gives them (`observed_mask` is `uint8`, `date` is `int32`). A big-endian `>f4` array counts as `float32`. A legacy `*_full` pair is not a partition, so no rule reaches it: tolerated, never required, never forbidden. The `float32` enforcement **applies the plan's recommended R2 pending the owner's ruling (the alternative is documented dtype tolerance)**.
+**Scope of the W1.4 rules** (findings F-P3 / F-S3 and ruling R2 of juniper-ml `notes/JUNIPER_2026-10-03_JUNIPER-RECURRENCE_EQUITIES-END-TO-END-AUDIT-AND-DEVELOPMENT-PLAN.md`). Every rule is presence-conditional: a partition or optional key the artifact does not carry is skipped, never required. The dtype rule covers `X` / `y` / `y_reg` only. `dt`, `t`, `target_dt`, the masks, `date`, `window_end_date`, `ticker_code` and `ticker_vocab` are not dtype-checked (a producer may emit `observed_mask` as `uint8` and `date` as `int32`; other dtypes on those keys still pass). A big-endian `>f4` array counts as `float32` because the check compares the scalar type, not dtype equality. A legacy `*_full` pair is not a partition, so no rule reaches it: tolerated, never required, never forbidden. The `float32` enforcement **applies the plan's recommended R2 pending the owner's ruling (the alternative is documented dtype tolerance)**.
 
-Optional `dt_atol` (default `1e-6`) is the absolute tolerance for the `t` / `dt` consistency check.
+Check order is the order of the messages below: `X_train` rank, then the dtype rule across every present partition, then the sequence rules for each split that has `X_{split}`. An `np.lib.npyio.NpzFile` is accepted (it supports `in` and `[]`). Keyword-only `dt_atol` (default `1e-6`) is the absolute tolerance for the `t` / `dt` consistency check.
+
+#### Rejection messages
+
+`str(exc)` is the whole message. `{split}` is `train`, `val`, or `test`. `{key}` is the stem plus that split (`X_train`, `dt_val`, …).
+
+| Rule | Message |
+|------|---------|
+| Rank of `X_train` | `X must be 2-D (tabular) or 3-D (sequence), got {ndim}-D` |
+| Dtype | `{key} must be float32, got {dtype}` |
+| 3-D split has neither `t` nor `dt` | `{split}: a 3-D artifact needs at least one of '{t_key}' / '{dt_key}'` |
+| `dt` shape | `{dt_key} shape {actual} != {expected}` |
+| `dt` not finite | `{dt_key} has non-finite values` |
+| `dt` negative | `{dt_key} has negative gaps` |
+| `dt` first column | `{dt_key}[:, 0] must be 0 by convention` |
+| `t` vs `dt` | `{split}: t_ and dt_ are inconsistent` |
+| `target_dt` shape | `{target_dt_key} shape {actual} != {expected}` |
+| `target_dt` not finite | `{target_dt_key} has non-finite values` |
+| `target_dt` negative | `{target_dt_key} has negative horizons` |
+| `seq_lengths` shape | `{seq_lengths_key} shape {actual} != {expected}` |
+| `seq_lengths` dtype | `{seq_lengths_key} must be an integer dtype, got {dtype}` |
+| `seq_lengths` below 1 | `{seq_lengths_key} has values below 1 (must be in [1, {L}])` |
+| `seq_lengths` above `L` | `{seq_lengths_key} has values above the window length {L} (must be in [1, {L}])` |
+| Mask shape | `{mask_key} shape {actual} != {expected}` |
+| Mask values | `{mask_key} must be binary (0/1)` |
+| Observed on a padded step | `{split}: observed_mask=1 on a padded (padding_mask=0) step` |
+
+Pins: `tests/test_contract.py` (one rejection test per new W1.4 rule, plus the earlier WS-1 raise sites).
 
 ---
 
@@ -842,6 +890,6 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** September 4, 2026
+**Last Updated:** October 5, 2026
 **Version:** 0.5.0
 **Maintainer:** Paul Calnon
