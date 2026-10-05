@@ -4,7 +4,7 @@
 
 **Version:** 0.5.0
 **Status:** Active
-**Last Updated:** September 4, 2026
+**Last Updated:** October 5, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -26,6 +26,8 @@
 - [Architecture and Design Patterns Reference](#architecture-and-design-patterns-reference)
 - [Constants Reference](#constants-reference)
 - [CI/CD Reference](#cicd-reference)
+- [Memory Budget (required check)](#memory-budget-required-check)
+- [Open-PR budget alarm](#open-pr-budget-alarm)
 - [NPZ Artifact Schema](#npz-artifact-schema)
 - [Three-way `train` / `val` / `test`](#three-way-train--val--test)
 - [`validate_npz_contract`](#validate_npz_contract)
@@ -667,6 +669,8 @@ Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it
 | `security-scan.yml` | Weekly schedule | Bandit code scanning + pip-audit dependency vulnerability check |
 | `sequence-safety.yml` | PR to main/develop | **Advisory** per-PR compositional-loss net (rollout Wave 2): AST symbol-loss screen (scope `juniper_data_client/**/*.py` + `tests/**/*.py`) + docs deletion-magnitude screen, from the published `juniper-ci-tools` console scripts. Standalone, never a required check; the `allow-symbol-loss` / `docs-rewrite` labels demote a FAIL to WARN-only |
 | `main-verify.yml` | Push to main | **Advisory** post-merge, bypass-proof run of the same two screens over the catch-up base .. merge tip (per-SHA, no-cancel so every merge is verified during a storm); screens-only (no regression battery); files one stable-title tracking issue per red streak on failure |
+| `ci.yml` job `memory-budget` | Pull request | **Required** check `Memory Budget` on the default branch (ruleset `data-client-rules`). Character ceiling for `AGENTS.md` in `conf/memory_budget.json`. Absent from the Quality Gate `needs:`. See [Memory Budget](#memory-budget-required-check) |
+| `pr-budget-alarm.yml` | Daily 14:00 UTC, `workflow_dispatch` | Report-only open-PR count. Defaults `PR_BUDGET_WARN` 15 / `PR_BUDGET_ALARM` 30, on the total or the `cursor/` prefix. A breach stays green. See [Open-PR budget alarm](#open-pr-budget-alarm) |
 
 ### Pre-Commit Hooks
 
@@ -719,6 +723,69 @@ close/re-open.
 PR mergeable into `main`, and it does **not** re-land the stack -- do that separately.
 
 Rollout and rationale: [juniper-ml#434](https://github.com/pcalnon/juniper-ml/issues/434).
+
+### Memory Budget (required check)
+
+The `memory-budget` job in `.github/workflows/ci.yml` publishes the status check **`Memory Budget`**. Ruleset `data-client-rules` (id `13316681`) requires that context on `~DEFAULT_BRANCH`, so a red run blocks merge into the default branch. Confirm the live list rather than this page:
+
+```bash
+gh api repos/pcalnon/juniper-data-client/rulesets/13316681 \
+  --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context'
+```
+
+**Quality Gate and the ruleset are different levers.** Job `required-checks` depends on `pre-commit`, `unit-tests`, `integration-tests`, `generator-parity`, `build`, `dependency-docs`, `security`, and `docs`. `memory-budget` is absent from that list. A `needs:` entry would fail the gate on events where this job does not run.
+
+**When the job runs.** Its `if` allows `pull_request` and `merge_group`. The workflow `on:` is push to `main`/`develop`, `pull_request` to those branches, and `workflow_dispatch`. `merge_group` is not in `on:`, so the job runs for pull requests and is skipped on push and manual dispatch. The ruleset requires the context on the default branch; a pull request into `develop` still runs the job.
+
+**What it measures.** `util/memory_budget_check.py` loads `conf/memory_budget.json`. The governed set is `AGENTS.md` only. `ceiling_chars` is **17604**, counted with Python `len` of the UTF-8 text (characters, not bytes). `docs/REFERENCE.md` is outside the set: it is the relocation destination, and a ceiling there would punish the move this gate exists to force.
+
+The comment above the job still describes the 2026-08-26 ceiling of 30,442. The checker reads the JSON. After the 2026-08-28 cut, `ceiling_chars` in that file is the ceiling.
+
+| Situation | Exit |
+|-----------|------|
+| Over the ceiling and larger than the base (or the base blob cannot be resolved) | 1 |
+| `ceiling_chars` raised against the base budget, with no raise trailer | 1, including when the file is under the new ceiling |
+| Governed file missing, budget missing, unreadable, or empty, or a non-positive ceiling | 2 (`BudgetError`) |
+| Over the ceiling but the same size or smaller than the base | 0 (no-worsening) |
+| Waiver or declared raise | 0 (`WAIVED` or `RAISE-WAIVED`; the finding is still printed) |
+
+The CLI still accepts `--advisory`, which reports a violation and exits 0. The workflow does not pass that flag (removed 2026-08-26).
+
+**Trailers.** The job writes `git log --format=%B FETCH_HEAD..HEAD` after fetching the base and passes that file. A trailer that exists only in the pull-request description is invisible. Put it on a commit in the base..HEAD range, one path per line. A reason may follow a hyphen or an en/em dash. The two keywords do not cross-match. Two paths on one line, or a keyword with no path, are printed as a `::warning::` and ignored.
+
+```text
+Allow-Budget-Overrun: AGENTS.md
+Allow-Ceiling-Raise: AGENTS.md — re-measured slack
+```
+
+- `Allow-Budget-Overrun` is a loan. This run passes and the ceiling stays, so the next growth fails again.
+- `Allow-Ceiling-Raise` moves the ceiling. An overrun trailer cannot authorize that edit.
+
+**Tightening.** `python3 util/memory_budget_check.py --ratchet` rewrites each ceiling down to the current character count and never up, which leaves zero headroom. After a cut, set `ceiling_chars` by hand to the new size plus slack you re-measure. The 2,073-character slack recorded in the JSON note is the 2026-08-28 figure, not a number to copy forward.
+
+```bash
+python3 util/memory_budget_check.py --base-ref origin/main
+```
+
+### Open-PR budget alarm
+
+`.github/workflows/pr-budget-alarm.yml` (workflow **PR Budget Alarm**) counts open pull requests. It runs on cron `0 14 * * *` (14:00 UTC) and on `workflow_dispatch`. It does not run on pull requests, and it is not a required status check. A breach is a green run: the workflow is an alarm, not a merge gate.
+
+| Input | Behavior |
+|-------|----------|
+| Thresholds | Repo variables `PR_BUDGET_WARN` (default **15**) and `PR_BUDGET_ALARM` (default **30**). Comparison is `>=`. An empty variable uses the default. |
+| Level | `ALARM` when the total or the `cursor/`-prefixed count meets the alarm; otherwise `WARN` when either meets the warn; otherwise `OK`. |
+| Query | `gh pr list --repo "$GH_REPO" --state open --limit 500 --json number,headRefName` |
+| Summary | Written on every run, including a failed query. |
+| Slack | Step runs only when `level` is not `OK`, with `continue-on-error: true`. The text is the level, both counts, both thresholds, and the run URL. |
+
+An empty `SLACK_WEBHOOK_URL` prints a `::warning::` titled `PR budget <level> with no Slack webhook` and exits 0. A POST failure does not fail the job.
+
+**Which failures stay green.** A failing `gh pr list` prints `::warning title=pr-budget-alarm::`, writes a summary that the query failed, sets `level=OK` (so Slack does not run), and exits 0. A `jq` failure after a successful list is outside that arm: `set -euo pipefail` fails the step. The workflow header says a `jq` failure is downgraded the same way; the script does not.
+
+`--limit 500` caps both counts. A queue longer than 500 can stay `OK` while the real total is over the alarm.
+
+Concurrency group `pr-budget-alarm` uses `cancel-in-progress: true`. Permissions are `contents: read` and `pull-requests: read`.
 
 ---
 
@@ -842,6 +909,6 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** September 4, 2026
+**Last Updated:** October 5, 2026
 **Version:** 0.5.0
 **Maintainer:** Paul Calnon

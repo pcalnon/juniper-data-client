@@ -2,9 +2,9 @@
 
 ## Navigation Guide to juniper-data-client Documentation
 
-**Version:** 0.5.0
+**Version:** 0.5.1
 **Status:** Active
-**Last Updated:** September 4, 2026
+**Last Updated:** October 5, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -27,6 +27,8 @@
 | **Install and use the client**  | [QUICK_START.md](QUICK_START.md)                   | docs/    |
 | **See the full API reference**  | [REFERENCE.md](REFERENCE.md)                       | docs/    |
 | **Understand train / val / test NPZ keys** | [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test) | docs/ |
+| **Clear a red Memory Budget check** | [REFERENCE.md § Memory Budget](REFERENCE.md#memory-budget-required-check) | docs/ |
+| **Read the open-PR budget alarm** | [REFERENCE.md § Open-PR budget alarm](REFERENCE.md#open-pr-budget-alarm) | docs/ |
 | **Understand the project**      | [README.md](../README.md)                          | Root     |
 | **See development conventions** | [AGENTS.md](../AGENTS.md)                          | Root     |
 | **See version history**         | [CHANGELOG.md](../CHANGELOG.md)                    | Root     |
@@ -98,8 +100,8 @@ Construction-time URL guards, exception context (`status_code` / `detail` / `res
 
 ---
 
-**Last Updated:** September 4, 2026
-**Version:** 0.5.0
+**Last Updated:** October 5, 2026
+**Version:** 0.5.1
 **Maintainer:** Paul Calnon
 
 > See the [Juniper Ecosystem Guide](../CLAUDE.md) for the full project map and dependency graph.

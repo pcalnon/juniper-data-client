@@ -1,7 +1,7 @@
 # Developer Cheatsheet — juniper-data-client
 
-**Version**: 1.0.2
-**Date**: 2026-09-04
+**Version**: 1.0.4
+**Date**: 2026-10-05
 **Project**: juniper-data-client
 
 ---
@@ -171,6 +171,8 @@ except JuniperDataTimeoutError:
 | `X_test` is 20 rows in `FakeDataClient`, not 40 | #187 carves a 0.1 `val` share from the former test remainder | Sum `n_train + n_val + n_test`; do not pin test size |
 | `KeyError: 'X_val'` on a live download | Producer has not shipped `val` | Treat `val` as optional; only `FakeDataClient` (#187) always emits it |
 | Auth failures (401/403)                | Missing or wrong API key   | Pass `api_key=`, or set `JUNIPER_DATA_API_KEY_FILE` / `JUNIPER_DATA_API_KEY` |
+| `Memory Budget` is red                 | `AGENTS.md` grew past `ceiling_chars` (17604), or that ceiling was raised in `conf/memory_budget.json` | Relocate the text into `docs/REFERENCE.md`. Loan: `Allow-Budget-Overrun: AGENTS.md` on a commit in the PR (the ceiling stays). A raise needs `Allow-Ceiling-Raise: AGENTS.md`; the overrun trailer does not authorize it. See [REFERENCE.md § Memory Budget](REFERENCE.md#memory-budget-required-check). |
+| Open-PR budget alarm stays green on a long queue | Report-only alarm; `gh pr list --limit 500` undercounts | Defaults are `PR_BUDGET_WARN` 15 and `PR_BUDGET_ALARM` 30, on the total or the `cursor/` count. Slack runs only on WARN/ALARM. A `gh` query error stays green; a `jq` error fails the step. See [REFERENCE.md § Open-PR budget alarm](REFERENCE.md#open-pr-budget-alarm). |
 
 ---
 
