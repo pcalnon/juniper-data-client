@@ -1,7 +1,7 @@
 # Developer Cheatsheet — juniper-data-client
 
-**Version**: 1.0.2
-**Date**: 2026-09-04
+**Version**: 1.0.3
+**Date**: 2026-10-05
 **Project**: juniper-data-client
 
 ---
@@ -171,6 +171,7 @@ except JuniperDataTimeoutError:
 | `X_test` is 20 rows in `FakeDataClient`, not 40 | #187 carves a 0.1 `val` share from the former test remainder | Sum `n_train + n_val + n_test`; do not pin test size |
 | `KeyError: 'X_val'` on a live download | Producer has not shipped `val` | Treat `val` as optional; only `FakeDataClient` (#187) always emits it |
 | Auth failures (401/403)                | Missing or wrong API key   | Pass `api_key=`, or set `JUNIPER_DATA_API_KEY_FILE` / `JUNIPER_DATA_API_KEY` |
+| `Sequence Safety` is red               | Required default-branch check | Read artifact `sequence-safety-report`. Waive with `Allow-Symbol-Loss: <qualified.symbol>` or `Allow-Docs-Rewrite: <path>` on a commit in the PR. `*` waives docs paths and waives no symbols. Labels `allow-symbol-loss` / `docs-rewrite` are WARN-only for that run. See [REFERENCE.md § Sequence Safety](REFERENCE.md#sequence-safety-required-check). |
 
 ---
 

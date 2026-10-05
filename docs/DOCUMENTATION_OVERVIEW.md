@@ -4,7 +4,7 @@
 
 **Version:** 0.5.0
 **Status:** Active
-**Last Updated:** September 4, 2026
+**Last Updated:** October 5, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -27,6 +27,7 @@
 | **Install and use the client**  | [QUICK_START.md](QUICK_START.md)                   | docs/    |
 | **See the full API reference**  | [REFERENCE.md](REFERENCE.md)                       | docs/    |
 | **Understand train / val / test NPZ keys** | [REFERENCE.md § Three-way train / val / test](REFERENCE.md#three-way-train--val--test) | docs/ |
+| **Clear a red Sequence Safety check** | [REFERENCE.md § Sequence Safety](REFERENCE.md#sequence-safety-required-check) | docs/ |
 | **Understand the project**      | [README.md](../README.md)                          | Root     |
 | **See development conventions** | [AGENTS.md](../AGENTS.md)                          | Root     |
 | **See version history**         | [CHANGELOG.md](../CHANGELOG.md)                    | Root     |
@@ -98,7 +99,7 @@ Construction-time URL guards, exception context (`status_code` / `detail` / `res
 
 ---
 
-**Last Updated:** September 4, 2026
+**Last Updated:** October 5, 2026
 **Version:** 0.5.0
 **Maintainer:** Paul Calnon
 

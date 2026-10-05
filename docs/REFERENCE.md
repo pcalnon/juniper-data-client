@@ -4,7 +4,7 @@
 
 **Version:** 0.5.0
 **Status:** Active
-**Last Updated:** September 4, 2026
+**Last Updated:** October 5, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -26,6 +26,8 @@
 - [Architecture and Design Patterns Reference](#architecture-and-design-patterns-reference)
 - [Constants Reference](#constants-reference)
 - [CI/CD Reference](#cicd-reference)
+- [Sequence Safety (required check)](#sequence-safety-required-check)
+- [Post-merge main verification](#post-merge-main-verification)
 - [NPZ Artifact Schema](#npz-artifact-schema)
 - [Three-way `train` / `val` / `test`](#three-way-train--val--test)
 - [`validate_npz_contract`](#validate_npz_contract)
@@ -665,8 +667,8 @@ Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it
 | `ci.yml` | Push/PR to main | Pre-commit, tests (Python 3.12/3.13/3.14 matrix), coverage (80% min), doc link validation, security scanning (Gitleaks, Bandit, pip-audit), build verification, quality gate |
 | `publish.yml` | GitHub Release | Publishes to TestPyPI (with install verification) then PyPI; trusted publishing (OIDC); build attestations |
 | `security-scan.yml` | Weekly schedule | Bandit code scanning + pip-audit dependency vulnerability check |
-| `sequence-safety.yml` | PR to main/develop | **Advisory** per-PR compositional-loss net (rollout Wave 2): AST symbol-loss screen (scope `juniper_data_client/**/*.py` + `tests/**/*.py`) + docs deletion-magnitude screen, from the published `juniper-ci-tools` console scripts. Standalone, never a required check; the `allow-symbol-loss` / `docs-rewrite` labels demote a FAIL to WARN-only |
-| `main-verify.yml` | Push to main | **Advisory** post-merge, bypass-proof run of the same two screens over the catch-up base .. merge tip (per-SHA, no-cancel so every merge is verified during a storm); screens-only (no regression battery); files one stable-title tracking issue per red streak on failure |
+| `sequence-safety.yml` | PR to `main` / `develop` | **Required** check `Sequence Safety` on the default branch (ruleset `data-client-rules`). Symbol-loss screen (`juniper_data_client/**/*.py`, `tests/**/*.py`) plus docs deletion-magnitude, from `juniper-ci-tools>=0.9.0,<0.10.0`. Absent from the Quality Gate `needs:`. See [Sequence Safety](#sequence-safety-required-check) |
+| `main-verify.yml` | Push to `main`, and `workflow_dispatch` | Post-merge run of the same two screens over the catch-up base .. tip. A finding fails `Assert screens clean` and files one issue titled `main-verify: post-merge verification failing` per red streak. Per-SHA group, `cancel-in-progress: false`. See [Post-merge main verification](#post-merge-main-verification) |
 
 ### Pre-Commit Hooks
 
@@ -719,6 +721,56 @@ close/re-open.
 PR mergeable into `main`, and it does **not** re-land the stack -- do that separately.
 
 Rollout and rationale: [juniper-ml#434](https://github.com/pcalnon/juniper-ml/issues/434).
+
+### Sequence Safety (required check)
+
+`.github/workflows/sequence-safety.yml` publishes the status check **`Sequence Safety`**. Ruleset `data-client-rules` (id `13316681`) requires that context on the default branch, so a red run blocks merge. The workflow also runs for pull requests into `develop`; required enforcement is the default-branch ruleset. Read the ruleset when the header and this page disagree:
+
+```bash
+gh api repos/pcalnon/juniper-data-client/rulesets/13316681 \
+  --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context'
+```
+
+**Quality Gate and the ruleset are different levers.** The job is absent from `ci.yml`'s Quality Gate `needs:`. Putting it in `needs:` fails that gate on events where this workflow does not run. #198 corrected the workflow header, which still called the check advisory after the ruleset promotion. This table kept that sentence.
+
+**Screens.** Both commands come from `juniper-ci-tools>=0.9.0,<0.10.0` and compare the pull request's base SHA to `HEAD`. Exit `0` is clean, exit `1` is an unwaived finding, exit `2` is an invocation error. `--advisory` masks exit `1` and still fails on exit `2`. JSON reports upload as artifact `sequence-safety-report` (kept 30 days).
+
+| Screen | Invocation | What fails the check |
+|--------|------------|----------------------|
+| Symbol loss | `juniper-symbol-loss-check --scope 'juniper_data_client/**/*.py' --scope 'tests/**/*.py'` | Unwaived `LOST` def/class/method, `WEAKENED` body (at most 0.6 of the base line count and at least 4 lines shorter), or a `DUPLICATED` def/class/method. Removed imports and module constants are WARN. A same-length body swap is invisible to `WEAKENED`. |
+| Docs magnitude | `juniper-docs-additions-check` (no `--scope`) | A deleted Markdown heading, or a run of 5 or more consecutive deleted lines with no adjacent addition. A retitle in the same hunk, and smaller edits, are WARN. A large delete that also adds a line in the hunk can stay WARN. |
+
+The symbol screen's package default (`tests/*.py` plus `util/**`) misses a deletion under `juniper_data_client/`, which is why this repo passes the two `--scope` globs. The docs screen's default surface is `AGENTS.md`, `CLAUDE.md`, `docs/**/*.md`, and `notes/**/*.md`.
+
+**Waiver.** Put the trailer on a commit in the base..HEAD range. That commit is what `main-verify.yml` can see; a pull-request label is invisible on a push to `main`.
+
+```text
+Allow-Symbol-Loss: method:ClassName.method_name
+Allow-Docs-Rewrite: docs/REFERENCE.md
+```
+
+- A symbol token matches the qualified key (`method:Class.name`, `func:name`, `class:Name`, `const:NAME`, `import:name`) or the same name with the kind prefix removed. `Allow-Symbol-Loss: *` waives nothing and is reported.
+- A docs token is a repo path. `Allow-Docs-Rewrite: *` waives every docs path in the diff.
+- Owner labels `allow-symbol-loss` and `docs-rewrite` pass `--advisory` for that one screen: findings still print and the exit becomes `0`. `gh pr view` reads labels live, so apply the label and re-run the job. The label does not clear the post-merge net.
+
+Concurrency group `sequence-safety-${{ github.ref }}` cancels the in-progress run. The ruleset waits on the latest push.
+
+### Post-merge main verification
+
+`main-verify.yml` (workflow name `Post-Merge Main Verification`) runs on push to `main` and on `workflow_dispatch`. It is outside the required-check list above, because it runs after the merge. Concurrency group `main-verify-${{ github.sha }}` sets `cancel-in-progress: false`, so a merge storm queues every SHA. `ci.yml` uses one group for `refs/heads/main` and cancels, which drops every merge except the last.
+
+The catch-up base is the `head_sha` of the latest successful main-verify run on `main` when that SHA is an ancestor of `HEAD`. Otherwise the resolver uses `github.event.before`, then `HEAD^1`. A quoted `[skip ci]` in a merge-commit body skips the workflow; the next ancestor base sweeps the skipped window. The chosen base and the reason are written to the step summary.
+
+The screen step always exits `0` and publishes `src` / `drc`. Two later steps split "the window was screened" from "the window was clean":
+
+| Step | Fails when |
+|------|------------|
+| `Assert screens reached a verdict` | Either exit is `>= 2` (no verdict, so the catch-up base stays put). A finding (exit `1`) passes this step. |
+| `Assert screens clean` | Either exit is `>= 1`. This step is the job's red/green, and it triggers `Notify on Failure`. |
+
+`Assert screens reached a verdict` is load-bearing. The catch-up resolver queries that step's conclusion by name through the Actions API. Renaming the step leaves the job able to pass and drops the resolver onto the legacy base, which brings back unscreened windows. There is no regression battery in this workflow; `ci.yml` still runs the suite before merge.
+
+`Notify on Failure` keeps one open issue per red streak, titled `main-verify: post-merge verification failing`. Dedup matches creator `github-actions[bot]`, that exact title, and an issue that is not a pull request. Later failing SHAs comment on the same issue. A green run leaves the issue open for the owner to close. The waiver trailers above are the remediation the issue body names.
 
 ---
 
@@ -840,6 +892,6 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** September 4, 2026
+**Last Updated:** October 5, 2026
 **Version:** 0.5.0
 **Maintainer:** Paul Calnon
