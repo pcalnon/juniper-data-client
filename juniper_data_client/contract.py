@@ -1,7 +1,7 @@
 """NPZ contract validation for tabular and 3-D sequence dataset artifacts.
 
 WS-1 (juniper-data#168) adds an additive, ``X.ndim``-dispatched NPZ contract: a
-2-D ``X`` is the legacy tabular artifact (unchanged), while a 3-D ``X``
+2-D ``X`` is the legacy tabular artifact, while a 3-D ``X``
 ``(W, L, F)`` is a time-series / irregular-Δt sequence artifact carrying a
 per-step ``dt`` (or absolute ``t``) channel plus optional ``observed_mask`` /
 ``padding_mask``.

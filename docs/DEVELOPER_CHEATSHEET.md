@@ -1,7 +1,7 @@
 # Developer Cheatsheet — juniper-data-client
 
-**Version**: 1.0.2
-**Date**: 2026-09-04
+**Version**: 1.0.5
+**Date**: 2026-10-05
 **Project**: juniper-data-client
 
 ---
@@ -73,7 +73,7 @@ with JuniperDataClient("http://localhost:8100") as client:
 
 ## Data Contract (NPZ Format)
 
-All arrays are `float32` dtype.
+`X`, `y`, and `y_reg` are `float32`. `validate_npz_contract` enforces that on every partition present, including a 2-D artifact. Sequence channels (`dt`, `t`, `target_dt`, `seq_lengths`, masks) are not forced to `float32`. See [REFERENCE.md § validate_npz_contract](REFERENCE.md#validate_npz_contract).
 
 | Key       | Shape                   | Description                   |
 |-----------|-------------------------|-------------------------------|
