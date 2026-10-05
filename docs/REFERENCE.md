@@ -757,7 +757,7 @@ Pins: `tests/test_fake_client.py` (`test_metadata_total_equals_the_partition_sum
 
 ### `validate_npz_contract`
 
-Public helper that classifies a loaded artifact and enforces the WS-1 sequence rules.
+Public helper that classifies a loaded artifact, enforces the Data Contract's `float32` dtype, and enforces the WS-1 sequence rules.
 
 ```python
 from juniper_data_client import validate_npz_contract, ContractKind
@@ -767,10 +767,12 @@ kind: ContractKind = validate_npz_contract(arrays)  # "tabular" or "sequence"
 
 | Return | Meaning |
 |--------|---------|
-| `"tabular"` | 2-D `X` (legacy path; no further checks). |
-| `"sequence"` | 3-D `X` `(W, L, F)` with irregular-Δt keys; `dt >= 0`, `dt[:, 0] == 0`, optional binary masks, consistent `t` / `dt`. |
+| `"tabular"` | 2-D `X` (legacy path). Only the dtype rule applies: `X` / `y` / `y_reg` are `float32` in every partition present. |
+| `"sequence"` | 3-D `X` `(W, L, F)` with irregular-Δt keys. The same dtype rule, plus: `dt` finite, `dt >= 0`, `dt[:, 0] == 0`; consistent `t` / `dt`; `target_dt` (if present) `(W,)`, finite, `>= 0`; `seq_lengths` (if present) `(W,)`, an integer dtype, every value in `[1, L]`; optional binary masks. |
 
-**Raises:** `JuniperDataContractError` (also a `ValueError`) when `X` is neither 2-D nor 3-D, or any 3-D rule fails. Contract violations are detected locally after download, so `status_code` stays `None`. The return type is `ContractKind` (`Literal["tabular", "sequence"]`); `CONTRACT_KIND_TABULAR` / `CONTRACT_KIND_SEQUENCE` are `Final[ContractKind]`.
+**Raises:** `JuniperDataContractError` (also a `ValueError`) when `X` is neither 2-D nor 3-D, when an `X` / `y` / `y_reg` partition is not `float32`, or when any 3-D rule fails. Contract violations are detected locally after download, so `status_code` stays `None`. The return type is `ContractKind` (`Literal["tabular", "sequence"]`); `CONTRACT_KIND_TABULAR` / `CONTRACT_KIND_SEQUENCE` are `Final[ContractKind]`.
+
+**Scope of the W1.4 rules** (findings F-P3 / F-S3 and ruling R2 of juniper-ml `notes/JUNIPER_2026-10-03_JUNIPER-RECURRENCE_EQUITIES-END-TO-END-AUDIT-AND-DEVELOPMENT-PLAN.md`). Every rule is presence-conditional: a partition or optional key the artifact does not carry is skipped, never required. The dtype rule covers `X` / `y` / `y_reg` only. `dt`, `t`, `target_dt`, the masks, `date`, `window_end_date`, `ticker_code` and `ticker_vocab` keep the dtypes the producer gives them (`observed_mask` is `uint8`, `date` is `int32`). A big-endian `>f4` array counts as `float32`. A legacy `*_full` pair is not a partition, so no rule reaches it: tolerated, never required, never forbidden. The `float32` enforcement **applies the plan's recommended R2 pending the owner's ruling (the alternative is documented dtype tolerance)**.
 
 Optional `dt_atol` (default `1e-6`) is the absolute tolerance for the `t` / `dt` consistency check.
 
