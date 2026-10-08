@@ -2,9 +2,9 @@
 
 ## juniper-data-client Technical Reference
 
-**Version:** 0.5.0
+**Version:** 0.5.1
 **Status:** Active
-**Last Updated:** September 4, 2026
+**Last Updated:** October 8, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -26,6 +26,10 @@
 - [Architecture and Design Patterns Reference](#architecture-and-design-patterns-reference)
 - [Constants Reference](#constants-reference)
 - [CI/CD Reference](#cicd-reference)
+- [Sequence Safety (required check)](#sequence-safety-required-check)
+- [Post-merge main verification](#post-merge-main-verification)
+- [Memory Budget (required check)](#memory-budget-required-check)
+- [Open-PR budget alarm](#open-pr-budget-alarm)
 - [NPZ Artifact Schema](#npz-artifact-schema)
 - [Three-way `train` / `val` / `test`](#three-way-train--val--test)
 - [`validate_npz_contract`](#validate_npz_contract)
@@ -665,8 +669,10 @@ Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it
 | `ci.yml` | Push/PR to main | Pre-commit, tests (Python 3.12/3.13/3.14 matrix), coverage (80% min), doc link validation, security scanning (Gitleaks, Bandit, pip-audit), build verification, quality gate |
 | `publish.yml` | GitHub Release | Publishes to TestPyPI (with install verification) then PyPI; trusted publishing (OIDC); build attestations |
 | `security-scan.yml` | Weekly schedule | Bandit code scanning + pip-audit dependency vulnerability check |
-| `sequence-safety.yml` | PR to main/develop | **Advisory** per-PR compositional-loss net (rollout Wave 2): AST symbol-loss screen (scope `juniper_data_client/**/*.py` + `tests/**/*.py`) + docs deletion-magnitude screen, from the published `juniper-ci-tools` console scripts. Standalone, never a required check; the `allow-symbol-loss` / `docs-rewrite` labels demote a FAIL to WARN-only |
-| `main-verify.yml` | Push to main | **Advisory** post-merge, bypass-proof run of the same two screens over the catch-up base .. merge tip (per-SHA, no-cancel so every merge is verified during a storm); screens-only (no regression battery); files one stable-title tracking issue per red streak on failure |
+| `sequence-safety.yml` | PR to `main` / `develop` | **Required** check `Sequence Safety` on the default branch (ruleset `data-client-rules`). Symbol-loss screen (`juniper_data_client/**/*.py`, `tests/**/*.py`) plus docs deletion-magnitude, from `juniper-ci-tools>=0.9.0,<0.10.0`. Absent from the Quality Gate `needs:`. See [Sequence Safety](#sequence-safety-required-check) |
+| `main-verify.yml` | Push to `main`, and `workflow_dispatch` | Post-merge run of the same two screens over the catch-up base .. tip. A finding fails `Assert screens clean` and files one issue titled `main-verify: post-merge verification failing` per red streak. Per-SHA group, `cancel-in-progress: false`. See [Post-merge main verification](#post-merge-main-verification) |
+| `ci.yml` job `memory-budget` | Pull request | **Required** check `Memory Budget` on the default branch (ruleset `data-client-rules`). Character ceiling for `AGENTS.md` in `conf/memory_budget.json`. Absent from the Quality Gate `needs:`. See [Memory Budget](#memory-budget-required-check) |
+| `pr-budget-alarm.yml` | Daily 14:00 UTC, `workflow_dispatch` | Report-only open-PR count. Defaults `PR_BUDGET_WARN` 15 / `PR_BUDGET_ALARM` 30, on the total or the `cursor/` prefix. A breach stays green. See [Open-PR budget alarm](#open-pr-budget-alarm) |
 
 ### Pre-Commit Hooks
 
@@ -720,11 +726,126 @@ PR mergeable into `main`, and it does **not** re-land the stack -- do that separ
 
 Rollout and rationale: [juniper-ml#434](https://github.com/pcalnon/juniper-ml/issues/434).
 
+### Sequence Safety (required check)
+
+`.github/workflows/sequence-safety.yml` publishes the status check **`Sequence Safety`**. Ruleset `data-client-rules` (id `13316681`) requires that context on the default branch, so a red run blocks merge. The workflow also runs for pull requests into `develop`; required enforcement is the default-branch ruleset. Read the ruleset when the header and this page disagree:
+
+```bash
+gh api repos/pcalnon/juniper-data-client/rulesets/13316681 \
+  --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context'
+```
+
+**Quality Gate and the ruleset are different levers.** `sequence-safety.yml` is its own workflow, so its job is not in `ci.yml`'s Quality Gate `needs:` (a `needs:` entry can only name a job in the same workflow). Being required is a ruleset property. #198 corrected the workflow header, which still called the check advisory after the ruleset promotion; the workflow table above carried the same stale sentence afterwards.
+
+**Screens.** Both commands come from `juniper-ci-tools>=0.9.0,<0.10.0` and compare the pull request's base SHA to `HEAD`. Exit `0` is clean, exit `1` is an unwaived finding, exit `2` is an invocation error. `--advisory` masks exit `1` and still fails on exit `2`. JSON reports upload as artifact `sequence-safety-report` (kept 30 days).
+
+| Screen | Invocation | What fails the check |
+|--------|------------|----------------------|
+| Symbol loss | `juniper-symbol-loss-check --scope 'juniper_data_client/**/*.py' --scope 'tests/**/*.py'` | Unwaived `LOST` def/class/method, `WEAKENED` body (at most 0.6 of the base line count and at least 4 lines shorter), or a `DUPLICATED` def/class/method. Removed imports and module constants are WARN. A same-length body swap is invisible to `WEAKENED`. |
+| Docs magnitude | `juniper-docs-additions-check` (no `--scope`) | A deleted Markdown heading, or a run of 5 or more consecutive deleted lines with no adjacent addition. A retitle in the same hunk, and smaller edits, are WARN. A large delete that also adds a line in the hunk can stay WARN. |
+
+The symbol screen's package default (`tests/*.py` plus `util/**`) misses a deletion under `juniper_data_client/`, which is why this repo passes the two `--scope` globs. The docs screen's default surface is `AGENTS.md`, `CLAUDE.md`, `docs/**/*.md`, and `notes/**/*.md`.
+
+**Waiver.** Put the trailer on a commit in the base..HEAD range; both screens read trailers from the commit messages in that range. On a squash merge, carry the trailer into the squash commit message: that commit is what `main-verify.yml` screens on `main`, and a pull-request label is invisible on a push to `main`.
+
+```text
+Allow-Symbol-Loss: method:ClassName.method_name
+Allow-Docs-Rewrite: docs/REFERENCE.md
+```
+
+- A symbol token matches the qualified key (`method:Class.name`, `func:name`, `class:Name`, `const:NAME`, `import:name`) or the same name with the kind prefix removed. `Allow-Symbol-Loss: *` waives nothing and is reported.
+- A docs token is a repo path. `Allow-Docs-Rewrite: *` waives every docs path in the diff.
+- Owner labels `allow-symbol-loss` and `docs-rewrite` pass `--advisory` for that one screen: findings still print and the exit becomes `0`. `gh pr view` reads labels live, so apply the label and re-run the job. The label does not clear the post-merge net.
+
+Concurrency group `sequence-safety-${{ github.ref }}` cancels the in-progress run. The ruleset waits on the latest push.
+
+### Post-merge main verification
+
+`main-verify.yml` (workflow name `Post-Merge Main Verification`) runs on push to `main` and on `workflow_dispatch`. It is outside the required-check list above, because it runs after the merge. Concurrency group `main-verify-${{ github.sha }}` sets `cancel-in-progress: false`, so a merge storm queues every SHA. `ci.yml` uses one group for `refs/heads/main` and cancels, which drops every merge except the last.
+
+The catch-up base is the `head_sha` of the newest of the last 20 completed main-verify runs on `main` whose `Assert screens reached a verdict` step succeeded, when that SHA is an ancestor of `HEAD`. A run with a finding still counts: its window was screened. If none qualifies, the resolver falls back to the latest successful run's `head_sha` (the legacy tier), then `github.event.before`, then `HEAD^1`. A quoted `[skip ci]` in a merge-commit body skips the workflow; the next ancestor base sweeps the skipped window. The chosen base and the reason are written to the step summary.
+
+The screen step always exits `0` and publishes `src` / `drc`. Two later steps split "the window was screened" from "the window was clean":
+
+| Step | Fails when |
+|------|------------|
+| `Assert screens reached a verdict` | Either exit is `>= 2` (no verdict, so the catch-up base stays put). A finding (exit `1`) passes this step. |
+| `Assert screens clean` | Either exit is `>= 1`. This step is the job's red/green, and it triggers `Notify on Failure`. |
+
+`Assert screens reached a verdict` is load-bearing. The catch-up resolver queries that step's conclusion by name through the Actions API. Renaming the step leaves the job able to pass and silently drops the resolver to the legacy tier, which restores the recurring-red defect: after a finding the base stays pinned to the last green run, so every later merge re-screens the same window and fails. There is no regression battery in this workflow; `ci.yml` still runs the suite before merge.
+
+`Notify on Failure` keeps one open issue per red streak, titled `main-verify: post-merge verification failing`. Dedup matches creator `github-actions[bot]`, that exact title, and an issue that is not a pull request. Later failing SHAs comment on the same issue. A green run leaves the issue open for the owner to close. The waiver trailers above are the remediation the issue body names.
+
+### Memory Budget (required check)
+
+The `memory-budget` job in `.github/workflows/ci.yml` publishes the status check **`Memory Budget`**. Ruleset `data-client-rules` (id `13316681`) requires that context on `~DEFAULT_BRANCH`, so a red run blocks merge into the default branch. Confirm the live list rather than this page:
+
+```bash
+gh api repos/pcalnon/juniper-data-client/rulesets/13316681 \
+  --jq '.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context'
+```
+
+**Quality Gate and the ruleset are different levers.** Job `required-checks` depends on `pre-commit`, `unit-tests`, `integration-tests`, `generator-parity`, `build`, `dependency-docs`, `security`, and `docs`. `memory-budget` is absent from that list. A `needs:` entry would fail the gate on events where this job does not run.
+
+**When the job runs.** Its `if` allows `pull_request` and `merge_group`. The workflow `on:` is push to `main`/`develop`, `pull_request` to those branches, and `workflow_dispatch`. `merge_group` is not in `on:`, so the job runs for pull requests and is skipped on push and manual dispatch. The ruleset requires the context on the default branch; a pull request into `develop` still runs the job.
+
+**What it measures.** `util/memory_budget_check.py` loads `conf/memory_budget.json`. The governed set is `AGENTS.md` only. `ceiling_chars` is **17604**, counted with Python `len` of the UTF-8 text (characters, not bytes). `docs/REFERENCE.md` is outside the set: it is the relocation destination, and a ceiling there would punish the move this gate exists to force.
+
+The comment above the job still describes the 2026-08-26 ceiling of 30,442. The checker reads the JSON. After the 2026-08-28 cut, `ceiling_chars` in that file is the ceiling.
+
+| Situation | Exit |
+|-----------|------|
+| Over the ceiling and larger than the base (or the base blob cannot be resolved) | 1 |
+| `ceiling_chars` raised against the base budget, with no raise trailer | 1, including when the file is under the new ceiling |
+| Governed file missing, budget missing, unreadable, or empty, or a non-positive ceiling | 2 (`BudgetError`) |
+| Over the ceiling but the same size or smaller than the base | 0 (no-worsening) |
+| Waiver or declared raise | 0 (`WAIVED` or `RAISE-WAIVED`; the finding is still printed) |
+
+The CLI still accepts `--advisory`, which reports a violation and exits 0. The workflow does not pass that flag (removed 2026-08-26).
+
+**Trailers.** The job writes `git log --format=%B FETCH_HEAD..HEAD` after fetching the base and passes that file. A trailer that exists only in the pull-request description is invisible. Put it on a commit in the base..HEAD range, one path per line. A reason may follow a hyphen or an en/em dash. The two keywords do not cross-match. Two paths on one line, or a keyword with no path, are printed as a `::warning::` and ignored.
+
+```text
+Allow-Budget-Overrun: AGENTS.md
+Allow-Ceiling-Raise: AGENTS.md — re-measured slack
+```
+
+- `Allow-Budget-Overrun` is a loan. This run passes and the ceiling stays, so the next growth fails again.
+- `Allow-Ceiling-Raise` moves the ceiling. An overrun trailer cannot authorize that edit.
+
+**Tightening.** `python3 util/memory_budget_check.py --ratchet` rewrites each ceiling down to the current character count and never up, which leaves zero headroom. After a cut, set `ceiling_chars` by hand to the new size plus slack you re-measure. The 2,073-character slack recorded in the JSON note is the 2026-08-28 figure, not a number to copy forward.
+
+```bash
+python3 util/memory_budget_check.py --base-ref origin/main
+```
+
+### Open-PR budget alarm
+
+`.github/workflows/pr-budget-alarm.yml` (workflow **PR Budget Alarm**) counts open pull requests. It runs on cron `0 14 * * *` (14:00 UTC) and on `workflow_dispatch`. It does not run on pull requests, and it is not a required status check. A breach is a green run: the workflow is an alarm, not a merge gate.
+
+| Input | Behavior |
+|-------|----------|
+| Thresholds | Repo variables `PR_BUDGET_WARN` (default **15**) and `PR_BUDGET_ALARM` (default **30**). Comparison is `>=`. An empty variable uses the default. |
+| Level | `ALARM` when the total or the `cursor/`-prefixed count meets the alarm; otherwise `WARN` when either meets the warn; otherwise `OK`. |
+| Query | `gh pr list --repo "$GH_REPO" --state open --limit 500 --json number,headRefName` |
+| Summary | Written on every run that reaches a level, and on a failed `gh` query. A `jq` failure fails the step before the summary is written. |
+| Slack | Step runs only when `level` is not `OK`, with `continue-on-error: true`. The text is the level, both counts, both thresholds, and the run URL. |
+
+An empty `SLACK_WEBHOOK_URL` prints a `::warning::` titled `PR budget <level> with no Slack webhook` and exits 0. A POST failure does not fail the job.
+
+**Which failures stay green.** A failing `gh pr list` prints `::warning title=pr-budget-alarm::`, writes a summary that the query failed, sets `level=OK` (so Slack does not run), and exits 0. A `jq` failure after a successful list is outside that arm: `set -euo pipefail` fails the step. The workflow header says a `jq` failure is downgraded the same way; the script does not.
+
+`--limit 500` caps both counts. With the default thresholds that cannot hide a breach (500 listed PRs is already `ALARM`), but a threshold set above 500 can never fire.
+
+Concurrency group `pr-budget-alarm` uses `cancel-in-progress: true`. Permissions are `contents: read` and `pull-requests: read`.
+
 ---
 
 ## NPZ Artifact Schema
 
-All arrays are `float32` dtype.
+`validate_npz_contract` requires `float32` on `X`, `y`, and `y_reg` only. That rule runs for a 2-D artifact and a 3-D artifact. No other key is required to be `float32`.
+
+### Tabular keys
 
 | Key | Shape | Description |
 |-----|-------|-------------|
@@ -735,7 +856,24 @@ All arrays are `float32` dtype.
 | `X_test` | `(n_test, n_features)` | Test features |
 | `y_test` | `(n_test, n_classes)` | Test labels (one-hot) |
 
+`y_reg_{split}`, when present, must also be `float32`. Its shape is not part of this gate.
+
 `NPZ_SPLITS` is `("train", "val", "test")` — `"val"` joined in #187 and `"full"` left in #190. Fake producers default to 0.8 / 0.1 / remainder (`FAKE_VAL_RATIO_DEFAULT`). Live artifacts may omit `val`.
+
+### Sequence keys (3-D `X`)
+
+These apply when `X_train` is `(W, L, F)`. `{split}` is each of `train` / `val` / `test` that carries `X_{split}`. A split with no `X_{split}` is not sequence-checked. An omitted optional key is skipped, never required.
+
+| Key | Shape the validator requires | Rule |
+|-----|------------------------------|------|
+| `dt_{split}` | `(W, L)` | Required unless `t_{split}` is present. After the shape check: finite, then `>= 0`, then column 0 is `0`. `-inf` / `NaN` / `+inf` are reported as non-finite, not as a negative gap or a first-column breach. Dtype is not checked. |
+| `t_{split}` | not shape-checked on its own | Required unless `dt_{split}` is present. When both are present they must agree under `np.allclose(..., atol=dt_atol)` (`dt_atol` default `1e-6`; numpy's default `rtol` of `1e-5` also applies, so the tolerance grows with the gap): the comparison uses `0` in column 0 and `diff(t)` after that. `t` itself is not finiteness-checked. |
+| `target_dt_{split}` | `(W,)` | Optional. Finite and `>= 0`. Zero is allowed. A `(W, 1)` column is rejected. Dtype is not checked. |
+| `seq_lengths_{split}` | `(W,)` | Optional. An integer dtype. `bool` and floating dtypes are refused, even when every value is a whole number. Every value in `[1, L]`, where `L` is that split's `X` window length (`X.shape[1]`). |
+| `observed_mask_{split}`, `padding_mask_{split}` | `(W, L)` | Optional. Every value is `0` or `1`. Where both masks are present, `observed_mask` must be `0` wherever `padding_mask == 0`. |
+| `date_{split}`, `window_end_date_{split}`, `ticker_code_{split}`, `ticker_vocab` | not checked | The gate does not read them. |
+
+A zero-window partition (`W == 0`) passes the per-window comparisons. A legacy `*_full` array is not a partition: nothing here requires it, checks it, or forbids it, including a `float64` `X_full` or a `dt_full` the sequence rules would refuse. Missing `X_train` raises `KeyError` from the rank probe; it is not a `JuniperDataContractError`.
 
 ### Three-way `train` / `val` / `test`
 
@@ -746,7 +884,7 @@ All arrays are `float32` dtype.
 | Surface | Now (#187, then #190) | Constraint |
 |---------|-----------------------|------------|
 | `NPZ_SPLITS` | `("train", "val", "test")` | `"full"` is gone — decision 11 shipped here in #190 and producer-side in juniper-data#369. An artifact produced before 2026-09-05 still carries `*_full`; consumers keep tolerating it (present but unvalidated), nothing requires it, and nothing asserts it is absent. |
-| `validate_npz_contract` | Iterates `NPZ_SPLITS` under `if x_key in arrays` | A split the artifact does not carry is skipped. Two-partition live/legacy artifacts validate unchanged. Do not `KeyError` on missing `X_val`. |
+| `validate_npz_contract` | Iterates `NPZ_SPLITS` under `if x_key in arrays` | A split the artifact does not carry is skipped, so a missing `X_val` does not `KeyError`. The `float32` rule still applies to every `X` / `y` / `y_reg` partition that is present, including a two-partition artifact. |
 | `testing/generators._split_dataset` | Three contiguous, index-disjoint blocks of one shuffled array | `train` = `train_ratio` (default 0.8); `val` = `FAKE_VAL_RATIO_DEFAULT` (0.1); `test` takes the remainder so no row is dropped. |
 | `FakeDataClient` metadata | Gains `n_val`; `n_full` is the partition sum | Length identity is `n_full == n_train + n_val + n_test` (risk R-5). Pins assert `n_val > 0` so the sum cannot pass vacuously. Since #190 `n_full` is computed from the three counts rather than `len(X_full)`, matching `DatasetMeta.n_samples` (juniper-data#358). |
 | `FakeDataClient.get_preview` | Serves the first `n` rows of `X_train` | It read `X_full` until #190. For a shuffled tabular artifact `train` is distributionally the whole set; for a **sequence** artifact it is the chronologically earliest block, so a preview no longer samples the later rows. |
@@ -772,9 +910,36 @@ kind: ContractKind = validate_npz_contract(arrays)  # "tabular" or "sequence"
 
 **Raises:** `JuniperDataContractError` (also a `ValueError`) when `X` is neither 2-D nor 3-D, when an `X` / `y` / `y_reg` partition is not `float32`, or when any 3-D rule fails. Contract violations are detected locally after download, so `status_code` stays `None`. The return type is `ContractKind` (`Literal["tabular", "sequence"]`); `CONTRACT_KIND_TABULAR` / `CONTRACT_KIND_SEQUENCE` are `Final[ContractKind]`.
 
-**Scope of the W1.4 rules** (findings F-P3 / F-S3 and ruling R2 of juniper-ml `notes/JUNIPER_2026-10-03_JUNIPER-RECURRENCE_EQUITIES-END-TO-END-AUDIT-AND-DEVELOPMENT-PLAN.md`). Every rule is presence-conditional: a partition or optional key the artifact does not carry is skipped, never required. The dtype rule covers `X` / `y` / `y_reg` only. `dt`, `t`, `target_dt`, the masks, `date`, `window_end_date`, `ticker_code` and `ticker_vocab` keep the dtypes the producer gives them (`observed_mask` is `uint8`, `date` is `int32`). A big-endian `>f4` array counts as `float32`. A legacy `*_full` pair is not a partition, so no rule reaches it: tolerated, never required, never forbidden. The `float32` enforcement **applies the plan's recommended R2 pending the owner's ruling (the alternative is documented dtype tolerance)**.
+**Scope of the W1.4 rules** (findings F-P3 / F-S3 and ruling R2 of juniper-ml `notes/JUNIPER_2026-10-03_JUNIPER-RECURRENCE_EQUITIES-END-TO-END-AUDIT-AND-DEVELOPMENT-PLAN.md`). Every rule is presence-conditional: a partition or optional key the artifact does not carry is skipped, never required. The dtype rule covers `X` / `y` / `y_reg` only. `dt`, `t`, `target_dt`, the masks, `date`, `window_end_date`, `ticker_code` and `ticker_vocab` are not dtype-checked (a producer may emit `observed_mask` as `uint8` and `date` as `int32`; other dtypes on those keys still pass). A big-endian `>f4` array counts as `float32` because the check compares the scalar type, not dtype equality. A legacy `*_full` pair is not a partition, so no rule reaches it: tolerated, never required, never forbidden. The `float32` enforcement **applies the plan's recommended R2 pending the owner's ruling (the alternative is documented dtype tolerance)**.
 
-Optional `dt_atol` (default `1e-6`) is the absolute tolerance for the `t` / `dt` consistency check.
+Check order is the order of the messages below: `X_train` rank, then the dtype rule across every present partition, then the sequence rules for each split that has `X_{split}`. An `np.lib.npyio.NpzFile` is accepted (it supports `in` and `[]`). Keyword-only `dt_atol` (default `1e-6`) is the absolute tolerance for the `t` / `dt` consistency check; it is passed to `np.allclose`, whose default relative tolerance (`1e-5`) also applies.
+
+#### Rejection messages
+
+`str(exc)` is the whole message. `{split}` is `train`, `val`, or `test`. `{key}` is the stem plus that split (`X_train`, `dt_val`, …).
+
+| Rule | Message |
+|------|---------|
+| Rank of `X_train` | `X must be 2-D (tabular) or 3-D (sequence), got {ndim}-D` |
+| Dtype | `{key} must be float32, got {dtype}` |
+| 3-D split has neither `t` nor `dt` | `{split}: a 3-D artifact needs at least one of '{t_key}' / '{dt_key}'` |
+| `dt` shape | `{dt_key} shape {actual} != {expected}` |
+| `dt` not finite | `{dt_key} has non-finite values` |
+| `dt` negative | `{dt_key} has negative gaps` |
+| `dt` first column | `{dt_key}[:, 0] must be 0 by convention` |
+| `t` vs `dt` | `{split}: t_ and dt_ are inconsistent` |
+| `target_dt` shape | `{target_dt_key} shape {actual} != {expected}` |
+| `target_dt` not finite | `{target_dt_key} has non-finite values` |
+| `target_dt` negative | `{target_dt_key} has negative horizons` |
+| `seq_lengths` shape | `{seq_lengths_key} shape {actual} != {expected}` |
+| `seq_lengths` dtype | `{seq_lengths_key} must be an integer dtype, got {dtype}` |
+| `seq_lengths` below 1 | `{seq_lengths_key} has values below 1 (must be in [1, {L}])` |
+| `seq_lengths` above `L` | `{seq_lengths_key} has values above the window length {L} (must be in [1, {L}])` |
+| Mask shape | `{mask_key} shape {actual} != {expected}` |
+| Mask values | `{mask_key} must be binary (0/1)` |
+| Observed on a padded step | `{split}: observed_mask=1 on a padded (padding_mask=0) step` |
+
+Pins: `tests/test_contract.py` (one rejection test per new W1.4 rule, plus the earlier WS-1 raise sites). Download does not call this helper; `download_artifact_npz` returns the arrays the server wrote.
 
 ---
 
@@ -842,6 +1007,6 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** September 4, 2026
-**Version:** 0.5.0
+**Last Updated:** October 8, 2026
+**Version:** 0.5.1
 **Maintainer:** Paul Calnon
