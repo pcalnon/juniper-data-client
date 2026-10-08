@@ -23,6 +23,7 @@ import base64
 import json
 import os
 import subprocess  # nosec B404 - the workflow shell is the interface under test
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -127,21 +128,34 @@ def _clean_api_files() -> None:
 
 
 def _gnu_base64_available() -> bool:
-    """The step runs on ubuntu-latest and encodes with GNU ``base64 -w0``.
+    """The step runs on ubuntu-latest and encodes with GNU ``base64 -w0 requirements.lock``.
 
-    BSD ``base64`` (the macOS unit-test lane) has no ``-w``. The failure is inside
-    ``$(...)`` used as an argument, so ``set -e`` does not stop the step and the
-    mutation is built with empty ``contents``. That is a property of the host, not
-    of the workflow, so the byte-level assertion is skipped where it cannot hold.
+    BSD ``base64`` (the macOS unit-test lane) does not produce that payload. The failure is
+    inside ``$(...)`` used as an argument, so ``set -e`` does not stop the step and the
+    mutation is built with empty ``contents``. That is a property of the host, not of the
+    workflow, so the byte-level assertion is skipped where it cannot hold -- and never on
+    Linux, the step's own platform, where a failing probe would be a real problem.
+
+    The probe runs the step's exact form (``-w0`` and a positional FILE) and checks the
+    OUTPUT: an exit-code-only probe of ``base64 -w0`` on empty stdin passed on the macOS
+    runner while the step still produced an empty payload there.
     """
-    proc = subprocess.run(  # nosec B603 B607 - fixed argv probe of the host base64 on the step's PATH
-        ["base64", "-w0"],
-        input=b"",
-        capture_output=True,
-        check=False,
-        env={"PATH": "/usr/bin:/bin", "LANG": "C"},
-    )
-    return proc.returncode == 0
+    if sys.platform.startswith("linux"):
+        return True
+    with tempfile.TemporaryDirectory() as tmp:
+        probe = Path(tmp) / "probe"
+        probe.write_bytes(b"x")
+        try:
+            proc = subprocess.run(  # nosec B603 B607 - fixed argv probe of the host base64 on the step's PATH
+                ["base64", "-w0", str(probe)],
+                capture_output=True,
+                check=False,
+                timeout=10,
+                env={"PATH": "/usr/bin:/bin", "LANG": "C"},
+            )
+        except (OSError, subprocess.SubprocessError):
+            return False
+    return proc.returncode == 0 and proc.stdout == b"eA=="
 
 
 class TestLockfileSignedCommit(unittest.TestCase):
