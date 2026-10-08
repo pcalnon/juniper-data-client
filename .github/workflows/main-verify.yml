@@ -19,8 +19,8 @@
 #    the ecosystem sequence-safety rollout
 #    (juniper-ml notes/JUNIPER_2026-08-07_JUNIPER-ECOSYSTEM_SEQUENCE-SAFETY-ROLLOUT-PLAN.md).
 #    Runs AFTER a merge lands on main, so it fires no matter who merged or what they bypassed
-#    -- the bypass-proof compositional-loss net the per-PR advisory screen
-#    (sequence-safety.yml) cannot guarantee. The flood damage class was every-PR-green but
+#    -- the bypass-proof compositional-loss net the per-PR screen (sequence-safety.yml,
+#    a REQUIRED ruleset context) cannot guarantee: a label demotes it, and a bypass skips it. The flood damage class was every-PR-green but
 #    serial same-file merges fused / silently deleted sibling content, and a deleted test
 #    cannot fail, so nothing per-PR saw it.
 #

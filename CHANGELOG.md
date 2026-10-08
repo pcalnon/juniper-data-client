@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Two workflow comments still called `Sequence Safety` advisory.** `sequence-safety.yml`'s
+  concurrency note and `main-verify.yml`'s header both described the per-PR screen as advisory.
+  It is a required context in `data-client-rules`. #198 corrected the workflow header and #230
+  the docs, but these two lines were missed. Found by the 2026-10-08 flood-3 follow-up sweep.
+
 - **`ci.yml`'s `notify-downstream` job reported a failed dispatch as success** (#211). Its three
   `repository_dispatch` calls (`data-client-updated` into juniper-data, juniper-cascor and
   juniper-canopy) were bare `curl -X POST`, and curl exits 0 on an HTTP error. A revoked or
