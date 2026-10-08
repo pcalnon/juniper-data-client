@@ -2,9 +2,9 @@
 
 ## Get juniper-data-client Working in 5 Minutes
 
-**Version:** 0.5.0
+**Version:** 0.5.1
 **Status:** Active
-**Last Updated:** September 4, 2026
+**Last Updated:** October 8, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -83,11 +83,23 @@ y_test = arrays["y_test"]    # (n_test, n_classes) float32 one-hot
 
 print(f"Training: {X_train.shape}, Test: {X_test.shape}")
 
-# Optional: classify tabular vs sequence (WS-1) and enforce Δt / mask rules
-from juniper_data_client import validate_npz_contract
+# Local gate (no HTTP). Download does not call it. status_code stays None;
+# str(exc) names the key and the rule.
+from juniper_data_client import JuniperDataContractError, validate_npz_contract
 
-kind = validate_npz_contract(arrays)  # "tabular" or "sequence"
+try:
+    kind = validate_npz_contract(arrays)  # "tabular" or "sequence"
+except JuniperDataContractError as exc:
+    print(exc)  # e.g. "X_train must be float32, got float64"
 ```
+
+`validate_npz_contract` checks, in order:
+
+1. `X_train.ndim` is 2 or 3. A missing `X_train` is a `KeyError`, not a contract error. Rank is read from `X_train` only.
+2. Every present `X_*` / `y_*` / `y_reg_*` partition is `float32`. This includes 2-D tabular artifacts. A big-endian `>f4` array counts. A missing partition is skipped. A legacy `*_full` pair is ignored.
+3. For a 3-D `X`, each split that carries `X_{split}`: at least one of `t_{split}` / `dt_{split}`; `dt` shaped `(W, L)`, finite, then `>= 0`, then a zero first column (so `-inf` is reported as non-finite); `t` and `dt` consistent when both are present; optional `target_dt_{split}` shaped `(W,)`, finite, and `>= 0`; optional `seq_lengths_{split}` shaped `(W,)`, an integer dtype, every value in `[1, L]`; optional binary masks shaped `(W, L)`, with `observed_mask` 0 wherever `padding_mask` is 0.
+
+`dt`, `t`, `target_dt`, the masks, dates, and ticker keys are not required to be `float32`. Message templates: [REFERENCE.md § validate_npz_contract](REFERENCE.md#validate_npz_contract).
 
 ### Context Manager
 
@@ -165,6 +177,6 @@ The test suite includes a `FakeDataClient` for testing consumers without a runni
 
 ---
 
-**Last Updated:** September 4, 2026
-**Version:** 0.5.0
+**Last Updated:** October 8, 2026
+**Version:** 0.5.1
 **Status:** Active
