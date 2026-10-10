@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-10
+
 ### Changed
 
-- **`validate_npz_contract` closes the W1.4 validator gaps and enforces `float32`** (juniper-ml
+- **BREAKING (contract): `validate_npz_contract` closes the W1.4 validator gaps and enforces `float32`** (juniper-ml
   `notes/JUNIPER_2026-10-03_JUNIPER-RECURRENCE_EQUITIES-END-TO-END-AUDIT-AND-DEVELOPMENT-PLAN.md`
   v1.3.0, item W1.4, findings F-P3 and F-S3). The audit found the advertised full-contract gate
   partial: `dt` was checked for shape, sign and a zero first column but not finiteness,
