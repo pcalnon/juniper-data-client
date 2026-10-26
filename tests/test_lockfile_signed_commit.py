@@ -232,6 +232,7 @@ class TestLockfileSignedCommit(unittest.TestCase):
             self.assertIn("No requirements.lock to commit", proc.stdout)
             self.assertFalse((root / "bin" / "gh.log").exists())
             self.assertFalse(self.commit_json.exists())
+            self.assertFalse(self.result_json.exists())
 
     def test_unchanged_lockfile_skips_without_calling_gh(self) -> None:
         """A current lockfile must not open a commit."""
