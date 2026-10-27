@@ -14,6 +14,10 @@ the workflow's own shell against a stub ``gh``.
 A local ``git commit`` would move HEAD. The signed path must leave HEAD where
 it was and leave the worktree dirty.
 
+The step writes its mutation and result under the runner's ``/tmp/``. Each
+test rewrites that prefix to its own scratch directory, so a run writes
+nothing under ``/tmp`` and two runs never share a file.
+
 Project: juniper-data-client
 """
 
@@ -35,8 +39,9 @@ STEP_NAME = "Commit updated lockfile (GitHub-signed, via API)"
 TOKEN = "cross-repo-dispatch-token-do-not-leak"  # nosec B105
 REPO = "pcalnon/juniper-data-client"
 BRANCH = "dependabot/pip/python-minor-example"
-COMMIT_JSON = Path("/tmp/lockfile-commit.json")  # nosec B108 - the workflow hardcodes this path
-RESULT_JSON = Path("/tmp/lockfile-commit-result.json")  # nosec B108 - same
+RUNNER_TMP = "/tmp/"  # nosec B108 - the prefix the step hardcodes; each test rewrites it to its own directory
+COMMIT_JSON_NAME = "lockfile-commit.json"
+RESULT_JSON_NAME = "lockfile-commit-result.json"
 HEADLINE = "[dependabot skip] Update requirements.lock"
 
 GH_STUB = """#!/bin/bash
@@ -141,9 +146,11 @@ def _init_repo(repo: Path, lock_text: str) -> str:
     return _git(repo, "rev-parse", "HEAD")
 
 
-def _clean_api_files() -> None:
-    COMMIT_JSON.unlink(missing_ok=True)
-    RESULT_JSON.unlink(missing_ok=True)
+def _relocated(script: str, scratch: Path) -> str:
+    """The step with its runner-``/tmp/`` scratch files moved into ``scratch``."""
+    if RUNNER_TMP not in script:
+        raise AssertionError("the step no longer writes under /tmp/; drop the relocation")
+    return script.replace(RUNNER_TMP, f"{scratch}/")
 
 
 def _gnu_base64_available() -> bool:
@@ -203,23 +210,28 @@ class TestLockfileSignedCommit(unittest.TestCase):
     script: str
     step: dict
     doc: dict
+    scratch: Path
+    commit_json: Path
+    result_json: Path
 
     @classmethod
     def setUpClass(cls) -> None:
         cls.doc, cls.step, cls.script = _load_step()
 
     def setUp(self) -> None:
-        _clean_api_files()
-
-    def tearDown(self) -> None:
-        _clean_api_files()
+        # Stands in for the runner's /tmp/: the step's scratch files land here, never under /tmp.
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.scratch = Path(scratch.name)
+        self.commit_json = self.scratch / COMMIT_JSON_NAME
+        self.result_json = self.scratch / RESULT_JSON_NAME
 
     def _run(self, repo: Path, bin_dir: Path, **env_overrides: str) -> subprocess.CompletedProcess[str]:
         bin_dir.mkdir(parents=True, exist_ok=True)
         (bin_dir / "gh").write_text(GH_STUB, encoding="utf-8")
         (bin_dir / "gh").chmod(0o755)
         return subprocess.run(  # nosec B603 B607 - fixed bash, workflow-owned script
-            ["bash", "-c", self.script],
+            ["bash", "-c", _relocated(self.script, self.scratch)],
             cwd=repo,
             capture_output=True,
             text=True,
@@ -244,6 +256,9 @@ class TestLockfileSignedCommit(unittest.TestCase):
         self.assertIn("createCommitOnBranch", self.script)
         self.assertIn("expectedHeadOid", self.script)
         self.assertIn(HEADLINE, self.script)
+        # The two runner paths the tests relocate; a renamed file must fail here, not silently.
+        self.assertIn(RUNNER_TMP + COMMIT_JSON_NAME, self.script)
+        self.assertIn(RUNNER_TMP + RESULT_JSON_NAME, self.script)
 
     def test_missing_lockfile_skips_without_calling_gh(self) -> None:
         """No lockfile is a clean skip. This repo is in that state today."""
@@ -255,7 +270,8 @@ class TestLockfileSignedCommit(unittest.TestCase):
             self.assertEqual(proc.returncode, 0, msg=proc.stderr)
             self.assertIn("No requirements.lock to commit", proc.stdout)
             self.assertFalse((root / "bin" / "gh.log").exists())
-            self.assertFalse(COMMIT_JSON.exists())
+            self.assertFalse(self.commit_json.exists())
+            self.assertFalse(self.result_json.exists())
 
     def test_unchanged_lockfile_skips_without_calling_gh(self) -> None:
         """A current lockfile must not open a commit."""
@@ -296,8 +312,9 @@ class TestLockfileSignedCommit(unittest.TestCase):
             self.assertEqual(_git(repo, "rev-parse", "HEAD"), head)
             self.assertNotEqual((repo / "requirements.lock").read_text(encoding="utf-8"), "pinned==1\n")
 
-            mutation = json.loads(COMMIT_JSON.read_text(encoding="utf-8"))
-            self.assertNotIn(TOKEN, COMMIT_JSON.read_text(encoding="utf-8"))
+            self.assertTrue(self.result_json.is_file(), "the step's GraphQL result must land in the scratch dir")
+            mutation = json.loads(self.commit_json.read_text(encoding="utf-8"))
+            self.assertNotIn(TOKEN, self.commit_json.read_text(encoding="utf-8"))
             change = mutation["variables"]["input"]
             self.assertEqual(change["expectedHeadOid"], head)
             self.assertEqual(change["branch"], {"repositoryNameWithOwner": REPO, "branchName": BRANCH})
@@ -311,7 +328,7 @@ class TestLockfileSignedCommit(unittest.TestCase):
             calls = _invocations((root / "bin" / "gh.log").read_bytes())
             self.assertEqual(len(calls), 1)
             self.assertEqual(calls[0][:3], ["api", "graphql", "--input"])
-            self.assertEqual(calls[0][3], str(COMMIT_JSON))
+            self.assertEqual(calls[0][3], str(self.commit_json))
             self.assertNotIn(TOKEN, calls[0])
 
     def test_graphql_errors_fail_and_do_not_claim_success(self) -> None:
