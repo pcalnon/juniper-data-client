@@ -6,13 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-
 ### Changed
-
 - **Temporary files go in the repo's gitignored `tmp/`, never `/tmp` (owner directive, 2026-10-26), and the
   owner's rulings on it are applied.** `/tmp/` is ignored, and `AGENTS.md` § Temporary files carries the rule
   and the rulings, retention included. `juniper-check-doc-links` passes `--exclude tmp` in the pre-commit hook
-  and in CI; nothing keeps pytest or a `grep`/`find` match count out of it. The repo builds no Docker image.
+  and in CI; nothing keeps pytest out of it, and counting scripts are to choose their scope as to `tmp/`
+  deliberately (the owner's revised ruling). The repo builds no Docker image. To stay under the memory budget,
+  `AGENTS.md`'s Coverage notes moved verbatim to `docs/REFERENCE.md`.
 
 ## [0.6.0] - 2026-10-10
 

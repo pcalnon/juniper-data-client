@@ -67,14 +67,7 @@ bash scripts/generate_dep_docs.sh
 
 ### Coverage
 
-Reproduce the CI coverage gate locally (full suite):
-
-```bash
-make coverage                 # convenience wrapper
-bash util/run_coverage.bash   # source of truth (mirrors .github/workflows/ci.yml)
-```
-
-Gate: 80% aggregate (override with `COVERAGE_FAIL_UNDER=<n>`). The script runs the full suite by design so the percentage matches CI; for a narrower run use plain `pytest`.
+How to reproduce the CI coverage gate locally, and its 80% aggregate threshold. Moved to [`docs/REFERENCE.md` § Coverage Gate Reference](docs/REFERENCE.md#coverage-gate-reference) — read it when working on this area.
 
 ---
 
@@ -111,12 +104,12 @@ ages `/tmp` too.
   derived from `TMPDIR`.
 - Out of scope: GitHub-hosted CI runners and a container's own `/tmp`.
 - Ecosystem rule and rationale: `juniper-ml/notes/JUNIPER_2026-10-26_JUNIPER-ECOSYSTEM_REPO-TMP-DIRECTORY-CONVENTION.md`.
-- **Owner rulings, 2026-10-26** (canonical: juniper-ml `notes/JUNIPER_2026-10-26_JUNIPER-ECOSYSTEM_REPO-TMP-DIRECTORY-CONVENTION.md`):
-  - `juniper-check-doc-links` ignores `tmp/`: every invocation passes `--exclude tmp`.
-  - pytest does not ignore `tmp/`: no `norecursedirs`, `--ignore` or `collect_ignore` entry names it.
-  - A local Docker build ignores `tmp/`: the build context's `.dockerignore` lists it.
-  - `tmp/` is a valid search location: a script that counts matches with `grep` or `find` includes it.
-  - Full-tree copies of the repo, and copies of log files, may live in `tmp/`.
+- **Owner rulings, 2026-10-26** (canonical: the note above): `juniper-check-doc-links` passes `--exclude tmp` and a
+  local Docker build's `.dockerignore` lists `tmp/`; pytest does not ignore it (no `norecursedirs`, `--ignore` or
+  `collect_ignore` names it). Full-tree repo copies and log-file copies may live there.
+  - A script that counts matches with `grep` or `find` chooses its scope deliberately: the repo with its `tmp/`
+    excluded, or `tmp/` alone; it searches both only for a stated edge case that needs both. Existing counting
+    scripts are to be modified to make that choice explicit, not left to `.gitignore` or a tool's defaults.
   - **Retention.** A file a work arc writes to `tmp/` is kept until it is no longer needed, no work arc (its own
     included) uses it, and it is no longer needed for documentation or reference, and, where needed, until it has
     been archived in an appropriate non-temporary directory. Only then may it be deleted.
