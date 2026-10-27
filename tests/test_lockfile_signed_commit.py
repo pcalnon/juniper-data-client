@@ -50,6 +50,25 @@ printf '%s' "${GH_BODY:-}"
 exit 0
 """
 
+# Two broken encoders. ``base64`` runs in the step's own ``$(...)``; while that sat inside a jq
+# argument, both shapes reached gh with an empty ``contents`` (flood-3 §4).
+FAILING_BASE64 = "#!/bin/sh\necho 'base64: simulated encode failure' >&2\nexit 1\n"
+SILENT_BASE64 = "#!/bin/sh\nexit 0\n"
+
+# A GNU-shaped ``base64 -w0 FILE`` for a host whose own base64 cannot produce the step's payload
+# (BSD/macOS; see ``_gnu_base64_available``). It encodes the real file with Python's ``base64``.
+GNU_BASE64_STANDIN = """import base64
+import sys
+
+if len(sys.argv) != 3 or sys.argv[1] != "-w0":
+    sys.exit("base64 stand-in: expected -w0 FILE, got " + " ".join(sys.argv[1:]))
+with open(sys.argv[2], "rb") as handle:
+    sys.stdout.write(base64.b64encode(handle.read()).decode("ascii"))
+"""
+
+# What gh answers for a commit that landed. A step that reaches gh with it claims success.
+SIGNED_COMMIT_BODY = {"data": {"createCommitOnBranch": {"commit": {"oid": "deadbeef", "url": "https://github.com/pcalnon/juniper-data-client/commit/deadbeef"}}}}
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -130,11 +149,11 @@ def _clean_api_files() -> None:
 def _gnu_base64_available() -> bool:
     """The step runs on ubuntu-latest and encodes with GNU ``base64 -w0 requirements.lock``.
 
-    BSD ``base64`` (the macOS unit-test lane) does not produce that payload. The failure is
-    inside ``$(...)`` used as an argument, so ``set -e`` does not stop the step and the
-    mutation is built with empty ``contents``. That is a property of the host, not of the
-    workflow, so the byte-level assertion is skipped where it cannot hold -- and never on
-    Linux, the step's own platform, where a failing probe would be a real problem.
+    BSD ``base64`` (the macOS unit-test lane) does not produce that payload, and the step
+    refuses an empty or failed encode before it calls gh (flood-3 §4). That is a property of
+    the host, not of the workflow, so the byte-level assertion is skipped where it cannot
+    hold -- and never on Linux, the step's own platform, where a failing probe would be a
+    real problem. The gh-side tests get past the encode there through ``_encoder_for_host``.
 
     The probe runs the step's exact form (``-w0`` and a positional FILE) and checks the
     OUTPUT: an exit-code-only probe of ``base64 -w0`` on empty stdin passed on the macOS
@@ -156,6 +175,26 @@ def _gnu_base64_available() -> bool:
         except (OSError, subprocess.SubprocessError):
             return False
     return proc.returncode == 0 and proc.stdout == b"eA=="
+
+
+def _put_base64(bin_dir: Path, body: str) -> None:
+    """Install ``body`` as the ``base64`` the step finds first (``bin_dir`` leads its PATH)."""
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    stub = bin_dir / "base64"
+    stub.write_text(body, encoding="utf-8")
+    stub.chmod(0o700)
+
+
+def _encoder_for_host(bin_dir: Path) -> None:
+    """Let the step get past its encode on a host whose ``base64`` cannot produce the payload.
+
+    The step stops at an empty or failed encode (flood-3 §4), which is where BSD/macOS
+    ``base64`` leaves it. The tests of what the step does with gh's answer need it to get
+    further, so on such a host a GNU-shaped stand-in goes first on the step's PATH. On Linux,
+    the step's own platform, nothing is installed and the host's GNU ``base64`` runs.
+    """
+    if not _gnu_base64_available():
+        _put_base64(bin_dir, f"#!{sys.executable} -I\n{GNU_BASE64_STANDIN}")
 
 
 class TestLockfileSignedCommit(unittest.TestCase):
@@ -286,6 +325,7 @@ class TestLockfileSignedCommit(unittest.TestCase):
             repo = root / "repo"
             head = _init_repo(repo, "pinned==1\n")
             (repo / "requirements.lock").write_text("pinned==2\n", encoding="utf-8")
+            _encoder_for_host(root / "bin")
             proc = self._run(repo, root / "bin", GH_BODY=json.dumps(body))
             self.assertEqual(proc.returncode, 1, msg=proc.stdout + proc.stderr)
             self.assertIn("expectedHeadOid mismatch", proc.stdout)
@@ -300,6 +340,7 @@ class TestLockfileSignedCommit(unittest.TestCase):
             repo = root / "repo"
             _init_repo(repo, "pinned==1\n")
             (repo / "requirements.lock").write_text("pinned==2\n", encoding="utf-8")
+            _encoder_for_host(root / "bin")
             proc = self._run(repo, root / "bin", GH_FAIL="1", GH_ERR="api unavailable")
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("api unavailable", proc.stderr)
@@ -312,6 +353,37 @@ class TestLockfileSignedCommit(unittest.TestCase):
             repo = root / "repo"
             _init_repo(repo, "pinned==1\n")
             (repo / "requirements.lock").write_text("pinned==2\n", encoding="utf-8")
+            _encoder_for_host(root / "bin")
             proc = self._run(repo, root / "bin", GH_BODY="{")
             self.assertNotEqual(proc.returncode, 0, msg=proc.stdout + proc.stderr)
             self.assertNotIn("Signed lockfile commit", proc.stdout)
+
+    def test_a_failing_encode_stops_before_gh(self) -> None:
+        """A non-zero ``base64`` stops the step. Inside ``"$(...)"`` as a jq argument it did not."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            head = _init_repo(repo, "pinned==1\n")
+            (repo / "requirements.lock").write_text("pinned==2\n", encoding="utf-8")
+            _put_base64(root / "bin", FAILING_BASE64)
+            proc = self._run(repo, root / "bin", GH_BODY=json.dumps(SIGNED_COMMIT_BODY))
+            self.assertNotEqual(proc.returncode, 0, msg=proc.stdout + proc.stderr)
+            self.assertIn("simulated encode failure", proc.stderr)
+            self.assertNotIn("Signed lockfile commit", proc.stdout)
+            self.assertFalse((root / "bin" / "gh.log").exists(), "gh was called without a payload")
+            self.assertEqual(_git(repo, "rev-parse", "HEAD"), head)
+
+    def test_an_empty_encode_stops_before_gh(self) -> None:
+        """An encode that exits 0 but prints nothing is refused, not committed: its exit status alone is not trusted."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            head = _init_repo(repo, "pinned==1\n")
+            (repo / "requirements.lock").write_text("pinned==2\n", encoding="utf-8")
+            _put_base64(root / "bin", SILENT_BASE64)
+            proc = self._run(repo, root / "bin", GH_BODY=json.dumps(SIGNED_COMMIT_BODY))
+            self.assertEqual(proc.returncode, 1, msg=proc.stdout + proc.stderr)
+            self.assertIn("::error::base64 produced an empty payload -- lockfile NOT committed", proc.stdout)
+            self.assertNotIn("Signed lockfile commit", proc.stdout)
+            self.assertFalse((root / "bin" / "gh.log").exists(), "gh was called with an empty payload")
+            self.assertEqual(_git(repo, "rev-parse", "HEAD"), head)
