@@ -834,7 +834,7 @@ python3 util/memory_budget_check.py --base-ref origin/main
 
 An empty `SLACK_WEBHOOK_URL` prints a `::warning::` titled `PR budget <level> with no Slack webhook` and exits 0. A POST failure does not fail the job.
 
-**Which failures stay green.** A failing `gh pr list` prints `::warning title=pr-budget-alarm::`, writes a summary that the query failed, sets `level=OK` (so Slack does not run), and exits 0. A `jq` failure after a successful list is outside that arm: `set -euo pipefail` fails the step. The workflow header says a `jq` failure is downgraded the same way; the script does not.
+**Which failures stay green.** A failing `gh pr list` prints `::warning title=pr-budget-alarm::`, writes a summary that the query failed, sets `level=OK` (so Slack does not run), and exits 0. A `jq` failure after a successful list is outside that arm: `set -euo pipefail` fails the step.
 
 `--limit 500` caps both counts. With the default thresholds that cannot hide a breach (500 listed PRs is already `ALARM`), but a threshold set above 500 can never fire.
 

@@ -14,6 +14,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deliberately (the owner's revised ruling). The repo builds no Docker image. To stay under the memory budget,
   `AGENTS.md`'s Coverage notes moved verbatim to `docs/REFERENCE.md`.
 
+### Fixed
+
+- **`lockfile-update.yml` could commit an empty lockfile.** The commit step built its
+  `createCommitOnBranch` payload with `--arg contents "$(base64 -w0 requirements.lock)"`. A failure
+  inside a command substitution used as a command argument does not trip `set -e`, so a failing or
+  silent `base64` handed jq an empty string and the step went on to commit an empty
+  `requirements.lock`. The step now encodes on its own line, where `set -e` does stop it, and refuses
+  an empty payload (`::error::base64 produced an empty payload -- lockfile NOT committed`) before it
+  calls gh. **Latent**: the step runs on `ubuntu-latest`, whose GNU `base64` does not fail this way,
+  and this repo tracks no `requirements.lock`, so the step has never committed one.
+  `tests/test_lockfile_signed_commit.py` pins both refusals with a failing and a silent `base64`
+  stub. Its gh-side cases now reach gh on the macOS unit-test leg through a GNU-shaped stand-in:
+  with BSD `base64` the step now stops at the encode, where it used to carry on with an empty
+  payload.
+  Found by the flood-3 evaluation (juniper-ml
+  `notes/JUNIPER_2026-10-08_JUNIPER-ECOSYSTEM_CURSOR-FLOOD-3-DISPOSITION.md` §4).
+- **Three workflow headers described behaviour their workflows do not have.** `pr-budget-alarm.yml`
+  said a `jq` failure is downgraded to a warning and a green run, as a `gh` failure is. The count
+  step runs under `set -euo pipefail`, so a `jq` failure fails the step, which
+  `tests/test_pr_budget_alarm.py` pins; the same paragraph said a missing Slack webhook skips the
+  Slack step, which annotates the run instead. `claude.yml` said `ANTHROPIC_API_KEY` is set at the
+  org level. This repo is user-owned, so no organization secret reaches it; the key is a repository
+  secret (added 2026-10-08). `main-verify.yml` said the catch-up base is the most recent SUCCESSFUL
+  run. Since #186 the resolver takes the newest of the last 20 completed runs whose `Assert screens
+  reached a verdict` step passed, and falls back to the last successful run only after that.
+  `docs/REFERENCE.md` already described the budget alarm and the catch-up base correctly; its
+  sentence pointing out the budget-alarm header's mismatch is removed. Comment text only:
+  `pr-budget-alarm.yml` and `claude.yml` parse identically, and `main-verify.yml` differs only in
+  shell comment lines inside its `run:` blocks. The first two are flood-3 §4 rows. The
+  `main-verify.yml` header was found by this pass: §4 lists the same defect for other repos, not
+  this one.
+
 ## [0.6.0] - 2026-10-10
 
 ### Changed
