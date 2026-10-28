@@ -4,7 +4,7 @@
 
 **Version:** 0.5.1
 **Status:** Active
-**Last Updated:** October 8, 2026
+**Last Updated:** October 26, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -35,6 +35,7 @@
 - [`validate_npz_contract`](#validate_npz_contract)
 - [HTTP Behavior](#http-behavior)
 - [Environment Variables](#environment-variables)
+- [Coverage Gate Reference](#coverage-gate-reference)
 - [Test Markers and Commands](#test-markers-and-commands)
 
 ---
@@ -976,6 +977,21 @@ All requests target `/v1/` endpoints on the configured `base_url`.
 
 ---
 
+## Coverage Gate Reference
+
+Relocated verbatim from `AGENTS.md` § Quick Reference → Coverage (2026-10-26, to keep the always-loaded file under its memory budget when the owner's revised `tmp/` counting ruling landed) so it is read on demand rather than loaded into every session.
+
+Reproduce the CI coverage gate locally (full suite):
+
+```bash
+make coverage                 # convenience wrapper
+bash util/run_coverage.bash   # source of truth (mirrors .github/workflows/ci.yml)
+```
+
+Gate: 80% aggregate (override with `COVERAGE_FAIL_UNDER=<n>`). The script runs the full suite by design so the percentage matches CI; for a narrower run use plain `pytest`.
+
+---
+
 ## Test Markers and Commands
 
 ### Running Tests
@@ -1007,6 +1023,6 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** October 8, 2026
+**Last Updated:** October 26, 2026
 **Version:** 0.5.1
 **Maintainer:** Paul Calnon
