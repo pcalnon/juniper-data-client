@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Changed
+- **A failed Bandit SARIF upload, or a missing SARIF, now fails `Security Scans` on a pull request (owner ruling
+  2026-10-30).** `.github/workflows/ci.yml`'s upload step is
+  `continue-on-error: ${{ github.event_name != 'pull_request' }}`, as in juniper-cascor#735, and on a PR it runs even
+  when bandit wrote no SARIF. The required `Bandit` check is created by code scanning from that upload, so before this
+  a failed upload, or a bandit that wrote no file (juniper-canopy#780's failure), left the PR waiting for a context
+  that never posted while `Security Scans` stayed green. Every other event keeps the old tolerance: the `hashFiles`
+  guard skips the step when there is no SARIF, and a failed upload leaves the job green. Found in the 2026-10-08
+  flood-3 disposition (juniper-ml `notes/JUNIPER_2026-10-08_JUNIPER-ECOSYSTEM_CURSOR-FLOOD-3-DISPOSITION.md` §8).
 - **Temporary files go in the repo's gitignored `tmp/`, never `/tmp` (owner directive, 2026-10-26), and the
   owner's rulings on it are applied.** `/tmp/` is ignored, and `AGENTS.md` § Temporary files carries the rule
   and the rulings, retention included. `juniper-check-doc-links` passes `--exclude tmp` in the pre-commit hook

@@ -599,16 +599,20 @@ jobs:
           bandit -r juniper_data_client --confidence-level medium --severity-level medium
 
       - name: Upload Bandit SARIF to GitHub Security
-        # ``hashFiles`` returns empty when the file is absent; only
-        # attempt the upload when SARIF actually exists. Combined with
-        # ``continue-on-error`` this keeps the job green even if a
-        # security-tools regression prevents bandit from emitting the
-        # file (mirrors the canonical pattern from juniper-data PR #67).
-        if: always() && hashFiles('reports/security/bandit.sarif') != ''
+        # The required `Bandit` check run is created by code scanning from
+        # this upload. On a PR the upload always runs, and a failure turns
+        # Security Scans red with the cause in this step's log, instead of
+        # leaving the PR waiting forever for a `Bandit` context that never
+        # posts. A missing SARIF counts as a failure there: it is how
+        # juniper-canopy#780's bandit, which wrote no file, went unnoticed.
+        # Every other event keeps the old tolerance from juniper-data PR #67:
+        # ``hashFiles`` skips the step when the file is absent, and a failed
+        # upload leaves the job green.
+        if: always() && (github.event_name == 'pull_request' || hashFiles('reports/security/bandit.sarif') != '')
         uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370  # v4.39.1
         with:
           sarif_file: reports/security/bandit.sarif
-        continue-on-error: true
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
 
       - name: Run pip-audit (Dependency Vulnerabilities)
         run: |
