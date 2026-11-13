@@ -59,6 +59,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shell comment lines inside its `run:` blocks. The first two are flood-3 §4 rows. The
   `main-verify.yml` header was found by this pass: §4 lists the same defect for other repos, not
   this one.
+- **A pull request's Gitleaks scan now covers every commit in its `base..head` range, and what its
+  merge commits changed themselves; gitleaks-action stopped at the 30th commit and dropped what
+  merges brought in (owner ruling 10, juniper-ml
+  `notes/JUNIPER_2026-11-06_JUNIPER-ECOSYSTEM_CURSOR-FLOOD-4-DISPOSITION.md` §8: the port of
+  juniper-data#530).** gitleaks-action v3.0.0 lists a pull request's commits with one unpaginated
+  `GET /repos/{owner}/{repo}/pulls/{pull_number}/commits` (30 per page, oldest first) and scans
+  `--no-merges --first-parent <page[0]>^..<page[-1]>` (`src/gitleaks.js` at `e0c47f4f…`). Commit 31
+  onwards is never scanned, and on a pull request of any length `--first-parent` from the page's
+  last commit drops every commit a merge brought into the branch: on juniper-ml#1797 (88 commits)
+  the action logged `12 commits scanned.`, one commit of the pull request and 11 already on `main`.
+  **Latent here**: of the 257 pull requests before this change (#1 to #259, read on 2026-11-12) the largest had 10 commits,
+  and each of the 76 merge commits in the 45 that hold one merged base-branch history into the pull
+  request, so neither loss cut a scan short (#259, one commit and four such merges, logged
+  `1 commits scanned.`). What no pull-request scan here saw is what those merge commits changed
+  themselves, such as a conflict resolution: the action passes `--no-merges`.
+  - **The fix**, in the `security` job of `.github/workflows/ci.yml`. The action skips
+    `pull_request`; `push` and `workflow_dispatch` still run it. `Install Gitleaks (pull request)`
+    downloads the same 8.24.3 release tarball and checks it with `sha256sum --check --strict`
+    against `GITLEAKS_SHA256` (`9991e0b2…`, the release's `linux_x64` checksum) before unpacking
+    it. `Run Gitleaks over the pull request` is juniper-data's step with its shell unchanged: it
+    scans `<base>..<head>` from the event payload with the action's detect flags and
+    `--remerge-diff`, refuses a base or head the checkout does not hold and a range that holds an
+    octopus merge, reads `git log` through a filter that deletes git's `remerge ...` notes, and
+    fails the way the action does (a leak with 1, any other gitleaks failure with its own code).
+    The redacted report is `gitleaks.sarif` in the `security-reports` artifact; on a pull request
+    the action's own `gitleaks-results.sarif` artifact is no longer produced.
+  - **The action step now states its engine**, `GITLEAKS_VERSION: "8.24.3"`: the action's default
+    at the pinned SHA and the version its log named here, so no engine changes. Unset, a bump of
+    the action SHA could move the engine on `push` while pull requests stayed on the installed one.
+  - **Pins**, in the new `tests/test_gitleaks_pr_scan.py` (25 cases): six read the workflow, eleven
+    run the scan step's own shell under `bash -e` with a stand-in engine, and eight run it with
+    the real engine (a token in the 1st and the 35th commit of a 35-commit range, one a merge
+    brought in, one that only a merge commit's own changes hold, a finding's commit and path under
+    a conflict note that says `commit`, a clean range, and a clean merge of a base branch that
+    holds a token). The six also pin what makes a leak fail the required check: the job keeps its
+    name and has no `if` and no `continue-on-error`, the install, the scan and the self-test
+    carry no `continue-on-error`, and the report upload runs after a failed scan. The `unit-tests`
+    job runs the file on all four legs, where the real-engine cases skip without a binary. A new
+    `Security Scans` step, `Gitleaks pull-request scan self-test (real engine)`, runs it with
+    `GITLEAKS_PARITY_REQUIRED=1`, which turns a missing binary into a failure.
+    `util/ad-hoc/2026-11-11_verify_gitleaks_pr_scan_tests_are_not_vacuous.py` makes 61 edits, one
+    at a time, each undoing one property, and the tests catch each.
+  - **Reproduced** in a scratch repository with gitleaks 8.24.3 and fabricated tokens built at
+    runtime (`util/ad-hoc/2026-11-11_reproduce_gitleaks_pr_commit_window.py`). Over 35 commits
+    with a token in commit 1 and in commit 35, the action's argv over its first page finds only
+    commit 1, and the new step finds both. A token on a side branch merged into a five-commit pull
+    request passes the action's argv and fails the new step, and so does a token written into the
+    conflict resolution of a merge of the base branch.
+  - Not covered on a pull request, as before: a commit a force-push removed before any run scanned
+    it, and whatever a `.gitleaks.toml` or `.gitleaksignore` added by the pull request itself
+    allows.
+  - Docs: `docs/REFERENCE.md` § Secret scan (Gitleaks), new.
 
 ## [0.6.0] - 2026-10-10
 
