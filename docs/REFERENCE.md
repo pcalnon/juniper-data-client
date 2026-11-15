@@ -2,9 +2,9 @@
 
 ## juniper-data-client Technical Reference
 
-**Version:** 0.5.2
+**Version:** 0.5.3
 **Status:** Active
-**Last Updated:** November 13, 2026
+**Last Updated:** November 14, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -573,7 +573,7 @@ Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it
 | `docs/QUICK_START.md` | Getting started guide |
 | `pyproject.toml` | Package config, dependencies, tool settings |
 | `.pre-commit-config.yaml` | Pre-commit hooks configuration |
-| `.github/workflows/ci.yml` | CI pipeline (Python 3.12/3.13/3.14, coverage, security) |
+| `.github/workflows/ci.yml` | CI pipeline (Python 3.12/3.13/3.14, plus informational Python 3.15 test legs that block nothing; coverage, security) |
 | `.github/workflows/publish.yml` | PyPI publishing with trusted publishing (OIDC) |
 | `CHANGELOG.md` | Version history and release notes |
 | `scripts/check_doc_links.py` | Documentation link validator |
@@ -668,7 +668,7 @@ Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it
 
 | Workflow | Trigger | Description |
 |----------|---------|-------------|
-| `ci.yml` | Push/PR to main | Pre-commit, tests (Python 3.12/3.13/3.14 matrix), coverage (80% min), doc link validation, security scanning (Gitleaks, Bandit, pip-audit), build verification, quality gate. The Gitleaks steps are in [Secret scan (Gitleaks)](#secret-scan-gitleaks) |
+| `ci.yml` | Push/PR to main | Pre-commit, tests (Python 3.12/3.13/3.14 matrix, plus informational Python 3.15 unit and integration legs that no ruleset requires and whose failure blocks nothing), coverage (80% min), doc link validation, security scanning (Gitleaks, Bandit, pip-audit), build verification, quality gate. The Gitleaks steps are in [Secret scan (Gitleaks)](#secret-scan-gitleaks) |
 | `publish.yml` | GitHub Release | Publishes to TestPyPI (with install verification) then PyPI; trusted publishing (OIDC); build attestations |
 | `security-scan.yml` | Weekly schedule | Bandit code scanning + pip-audit dependency vulnerability check. It does not run Gitleaks |
 | `sequence-safety.yml` | PR to `main` / `develop` | **Required** check `Sequence Safety` on the default branch (ruleset `data-client-rules`). Symbol-loss screen (`juniper_data_client/**/*.py`, `tests/**/*.py`) plus docs deletion-magnitude, from `juniper-ci-tools>=0.9.0,<0.10.0`. Absent from the Quality Gate `needs:`. See [Sequence Safety](#sequence-safety-required-check) |
@@ -1080,6 +1080,6 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** November 13, 2026
-**Version:** 0.5.2
+**Last Updated:** November 14, 2026
+**Version:** 0.5.3
 **Maintainer:** Paul Calnon
