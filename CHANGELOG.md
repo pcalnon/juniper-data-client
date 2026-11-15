@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Added
+
+- **CI runs the unit and integration tests on Python 3.15 as well, as informational legs that block nothing.** Phase 1
+  of the ecosystem's Python 3.15 migration (the owner's request of 2026-11-14): 3.15 results are reported, and no
+  merge, commit or deployment waits on them.
+  - `.github/workflows/ci.yml`: `unit-tests` gains `Unit Tests + Coverage (Python 3.15 on ubuntu-latest)` and
+    `integration-tests` gains `Integration Tests (Python 3.15)`, each an `include` entry with `experimental: true`.
+    Both jobs gain `continue-on-error: ${{ matrix.experimental == true }}`, true on the 3.15 leg alone (the macOS
+    leg leaves the flag unset), so a red 3.15 leg leaves `needs.unit-tests.result` and
+    `needs.integration-tests.result` unchanged: the Quality Gate, `build` and, on a push to `main`,
+    `notify-downstream` are unaffected. Neither context is in ruleset `data-client-rules`.
+  - `.github/workflows/scheduled-tests.yml`: the daily `Slow / Integration Tests` matrix gains the same informational
+    3.15 leg. Its job name now spells out the `(<version>)` suffix GitHub used to append, so the three existing legs
+    post the same names and the new one is `(3.15)`, not `(3.15, true)`.
+  - The pattern was measured on juniper-data#538 (run 43655144734): with the 3.15 leg failed on purpose, its check
+    read `failure`, the Quality Gate printed `Unit Tests: success` and passed, and every job that needs
+    `unit-tests` ran.
+  - `requires-python`, the classifiers, the mypy and black targets, pre-commit (still 3.12-3.14) and the
+    single-version jobs are unchanged.
+  - `docs/REFERENCE.md` describes the legs.
+
 ### Changed
 - **`agents-md-touch-up.yml` pins `actions/checkout` to a commit SHA (owner ruling 2026-11-03).** It checked out with
   the `v7.0.1` tag, the only tag-only `actions/checkout` in `.github/workflows/`. It now uses
