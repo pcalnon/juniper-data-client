@@ -2,9 +2,9 @@
 
 ## juniper-data-client Technical Reference
 
-**Version:** 0.5.3
+**Version:** 0.5.4
 **Status:** Active
-**Last Updated:** November 14, 2026
+**Last Updated:** November 16, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -669,12 +669,32 @@ Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it
 | Workflow | Trigger | Description |
 |----------|---------|-------------|
 | `ci.yml` | Push/PR to main | Pre-commit, tests (Python 3.12/3.13/3.14 matrix, plus informational Python 3.15 unit and integration legs that no ruleset requires and whose failure blocks nothing), coverage (80% min), doc link validation, security scanning (Gitleaks, Bandit, pip-audit), build verification, quality gate. The Gitleaks steps are in [Secret scan (Gitleaks)](#secret-scan-gitleaks) |
-| `publish.yml` | GitHub Release | Publishes to TestPyPI (with install verification) then PyPI; trusted publishing (OIDC); build attestations |
+| `publish.yml` | GitHub Release (`v*` tags); `workflow_dispatch` from a release tag, republish only | Builds once; TestPyPI, then PyPI, upload that one artifact, each checked by sha256 against TestPyPI's JSON; install verification from TestPyPI; trusted publishing (OIDC); build attestations. See [Publishing and Recovery](#publishing-and-recovery) |
 | `security-scan.yml` | Weekly schedule | Bandit code scanning + pip-audit dependency vulnerability check. It does not run Gitleaks |
 | `sequence-safety.yml` | PR to `main` / `develop` | **Required** check `Sequence Safety` on the default branch (ruleset `data-client-rules`). Symbol-loss screen (`juniper_data_client/**/*.py`, `tests/**/*.py`) plus docs deletion-magnitude, from `juniper-ci-tools>=0.9.0,<0.10.0`. Absent from the Quality Gate `needs:`. See [Sequence Safety](#sequence-safety-required-check) |
 | `main-verify.yml` | Push to `main`, and `workflow_dispatch` | Post-merge run of the same two screens over the catch-up base .. tip. A finding fails `Assert screens clean` and files one issue titled `main-verify: post-merge verification failing` per red streak. Per-SHA group, `cancel-in-progress: false`. See [Post-merge main verification](#post-merge-main-verification) |
 | `ci.yml` job `memory-budget` | Pull request | **Required** check `Memory Budget` on the default branch (ruleset `data-client-rules`). Character ceiling for `AGENTS.md` in `conf/memory_budget.json`. Absent from the Quality Gate `needs:`. See [Memory Budget](#memory-budget-required-check) |
 | `pr-budget-alarm.yml` | Daily 14:00 UTC, `workflow_dispatch` | Report-only open-PR count. Defaults `PR_BUDGET_WARN` 15 / `PR_BUDGET_ALARM` 30, on the total or the `cursor/` prefix. A breach stays green. See [Open-PR budget alarm](#open-pr-budget-alarm) |
+
+### Publishing and Recovery
+
+`publish.yml` builds once and hands both publish jobs one artifact:
+
+1. `Build and Validate` builds the sdist and wheel (`python -m build`, `twine check`), records their sha256 in `SHA256SUMS` and uploads both as one artifact, `juniper-data-client-dist`, kept 90 days; a re-run attempt reuses that artifact instead of building again. It runs for a published `v*` Release only
+2. `Publish to TestPyPI` checks the files against `SHA256SUMS`, uploads them (`attestations`, `verbose`; never `skip-existing`), requires TestPyPI's JSON to list exactly those sha256, then verifies the install (`--no-deps`, TestPyPI index only, the version read from `pyproject.toml`)
+3. `Publish to PyPI`, behind the `pypi` approval, checks the same files against `SHA256SUMS` and TestPyPI's JSON again, uploads them (`attestations`; trusted publishing / OIDC), then checks PyPI's JSON. Only the jobs that upload hold `id-token: write`
+
+The steps marked `One-artifact publish template`, and the `republish` job, are verbatim copies of juniper-cascor's `publish.yml` (juniper-cascor#763, #767); `tests/test_publish_one_artifact.py` pins them to its sha256, so change them there first. The contract: juniper-cascor's [`docs/ci_cd/MANUAL.md` § One Artifact, Checked Against TestPyPI](https://github.com/pcalnon/juniper-cascor/blob/main/docs/ci_cd/MANUAL.md#one-artifact-checked-against-testpypi).
+
+**A release that did not reach PyPI**: the owner's recovery ladder (ruling of 2026-11-15), in this order ([§ Recovering a Release That Did Not Reach PyPI](https://github.com/pcalnon/juniper-cascor/blob/main/docs/ci_cd/MANUAL.md#recovering-a-release-that-did-not-reach-pypi)):
+
+1. **Republish TestPyPI's files**: `gh workflow run publish.yml --repo pcalnon/juniper-data-client --ref v<version> -f republish_from_testpypi=true`. Only `Republish the tested files (dispatch only)` runs, behind the `pypi` gate; it builds nothing, and only a tag cut after this job landed carries it.
+   It copies TestPyPI's files whatever the release run's jobs concluded, so use it only when that run's `Publish to TestPyPI` succeeded, or failed on index lag alone (a JSON check or the install check that gave up waiting).
+2. **If that fails, within 30 days of the release run**: **Re-run failed jobs** on the release run, which reuses the run's artifact.
+3. **Otherwise**: cut a new patch version.
+
+A broken package is neither case: when `Publish to TestPyPI` failed after its upload for a real reason (the install check refused the package, say for its `Requires-Python`), TestPyPI already holds those files, and neither rung 1 nor "Re-run failed jobs" can change them, so cut a new patch version.
+Never "Re-run all jobs" on a publish run, nor `gh run rerun <id>` without `--failed`.
 
 ### Pre-Commit Hooks
 
@@ -1080,6 +1100,6 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** November 14, 2026
-**Version:** 0.5.3
+**Last Updated:** November 16, 2026
+**Version:** 0.5.4
 **Maintainer:** Paul Calnon
