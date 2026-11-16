@@ -21,7 +21,8 @@ job names juniper-ml's release-train ceremony reads; per-job permissions; the re
 guarding every later step; each upload preceded by the dist check; TestPyPI's JSON checked after the TestPyPI upload
 and again before the PyPI one, and PyPI's after; no ``skip-existing``; an artifact that outlives the 30-day ``pypi``
 gate; the republish job's trigger, gate, steps and name; the triggers, tag guard, build commands, upload inputs
-and install check this workflow kept; and every template block, and the republish job, byte-identical to juniper-cascor's. The
+and install check this workflow kept; each job's exact step list, no ``continue-on-error``, and the install check's script and the
+uploads' inputs exactly; and every template block, and the republish job, byte-identical to juniper-cascor's. The
 rehearsals run each template step's own Python, extracted from ``publish.yml``, in a scratch workspace, against a
 stand-in index and a stand-in GitHub API on 127.0.0.1.
 
@@ -136,6 +137,29 @@ SDIST = f"{DIST_NAME}-9.9.9.tar.gz"
 BUILT = {WHEEL: b"wheel bytes", SDIST: b"sdist bytes"}
 JSON_PATH = f"/pypi/{PACKAGE}/9.9.9/json"
 REPOSITORY = f"pcalnon/{PACKAGE}"
+#: Each job's steps, in order: a step's name, or for a nameless step the action it uses, without the ref Dependabot moves.
+STEPS = {
+    "build": [REUSE, "actions/checkout", "actions/setup-python", "Install build tools", "Build package", "Check package", RECORD, UPLOAD],
+    "testpypi": ["actions/checkout", "actions/setup-python", DOWNLOAD, VERIFY_DIST, "Publish to TestPyPI", TESTPYPI_AFTER, "Verify TestPyPI install"],
+    "pypi": [DOWNLOAD, VERIFY_DIST, TESTPYPI_BEFORE, "Publish to PyPI", PYPI_AFTER],
+    REPUBLISH: [FIND, FETCH_ORIGINAL, FETCH, VERIFY_DIST, "Publish to PyPI", PYPI_AFTER],
+}
+#: The TestPyPI upload's inputs and the PyPI upload's, exactly: a misspelled input (``skip_existing``) or a value turned
+#: off (``attestations: false``) would pass a check of named keys.
+UPLOAD_INPUTS = ({"repository-url": "https://test.pypi.org/legacy/", "packages-dir": DIST_INPUT, "verbose": True, "attestations": True}, {"packages-dir": DIST_INPUT, "attestations": True})
+#: The install check's script, exactly: a check of its parts would pass a ``|| true`` on the pip line.
+INSTALL_CHECK_RUN = """\
+VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+sleep 30
+# NOTE (security): install with --no-deps against TestPyPI only. Do NOT add a
+# production-PyPI fallback index here — with --no-deps no deps are fetched, so a
+# fallback only risks resolving a squatted target package. The sleep above covers
+# TestPyPI index lag.
+pip install --no-deps --index-url https://test.pypi.org/simple/ "juniper-data-client==${VERSION}"
+# Version-only check: juniper_data_client imports numpy/requests at import time, which
+# are absent under --no-deps; verify the published artifact via its installed metadata.
+python -c "import importlib.metadata as m; print('TestPyPI OK: v' + m.version('juniper-data-client'))"
+"""
 #: The variable the reuse and find steps read the runner's API credential from, the expression that fills it, and the
 #: stand-in value the rehearsals pass. Bandit's B105 reads a string under a name like the first as a hardcoded password.
 API_CREDENTIAL_ENV = "GH_TOKEN"
@@ -484,13 +508,28 @@ class TestUnchanged:
         assert "extra-index-url" not in run
         assert f"m.version('{PACKAGE}')" in run
 
-    def test_the_uploads_keep_attestations_and_verbose_and_drop_skip_existing(self):
+
+class TestExactly:
+    """What the order and key checks above would let through: an extra step, a failure let pass, an install check that
+    cannot fail, an upload input misspelled or turned off."""
+
+    def test_each_job_runs_exactly_these_steps_in_this_order(self):
         jobs = _workflow("publish.yml")["jobs"]
-        testpypi = jobs["testpypi"]["steps"][_uploads(jobs["testpypi"])[0]]["with"]
-        pypi = jobs["pypi"]["steps"][_uploads(jobs["pypi"])[0]]["with"]
-        # skip-existing is gone (TestWiring pins that for every upload); the other inputs are what the jobs set before.
-        assert testpypi == {"repository-url": "https://test.pypi.org/legacy/", "packages-dir": DIST_INPUT, "verbose": True, "attestations": True}
-        assert pypi == {"packages-dir": DIST_INPUT, "attestations": True}
+        assert {job_id: [str(s.get("name") or str(s.get("uses") or "").split("@")[0]) for s in job.get("steps") or []] for job_id, job in jobs.items()} == STEPS
+
+    def test_no_job_and_no_step_lets_a_failure_pass(self):
+        for job_id, job in _workflow("publish.yml")["jobs"].items():
+            assert "continue-on-error" not in job, f"job {job_id} sets continue-on-error"
+            for step in job.get("steps") or []:
+                assert "continue-on-error" not in step, f"{job_id}: {step.get('name') or step.get('uses')} sets continue-on-error"
+
+    def test_the_install_check_runs_exactly_this(self):
+        assert _step(_workflow("publish.yml")["jobs"]["testpypi"], "Verify TestPyPI install") == {"name": "Verify TestPyPI install", "run": INSTALL_CHECK_RUN}
+
+    def test_the_uploads_take_exactly_these_inputs(self):
+        jobs = _workflow("publish.yml")["jobs"]
+        inputs = tuple(jobs[job_id]["steps"][_uploads(jobs[job_id])[0]].get("with") for job_id in ("testpypi", "pypi"))
+        assert inputs == UPLOAD_INPUTS
 
 
 class TestTemplate:
