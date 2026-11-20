@@ -115,7 +115,7 @@ def _validate_float32(arrays: Dict[str, np.ndarray]) -> None:
     """``X`` / ``y`` / ``y_reg`` must be ``float32`` in every partition present.
 
     Ruling R2 of the W1.4 plan: this applies the plan's recommended R2 pending the
-    owner's ruling. The alternative is documented dtype tolerance, which would remove
+    Overtoad's ruling. The alternative is documented dtype tolerance, which would remove
     this call and document the tolerance instead.
 
     Presence-conditional like every rule here: a partition or target the artifact

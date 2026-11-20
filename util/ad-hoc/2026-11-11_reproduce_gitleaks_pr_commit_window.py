@@ -10,7 +10,7 @@ Retire when: gitleaks-action's pull_request path covers a pull request's whole r
 Related: .github/workflows/ci.yml ("Run Gitleaks over the pull request"), tests/test_gitleaks_pr_scan.py
 
 gitleaks-action v3.0.0 (e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e) lists a pull request's commits with one
-unpaginated ``GET /repos/{owner}/{repo}/pulls/{n}/commits`` (30 per page, oldest first) and scans
+unpaginated ``GET /repos/{Overtoad}/{repo}/pulls/{n}/commits`` (30 per page, oldest first) and scans
 ``--no-merges --first-parent <page[0]>^..<page[-1]>`` (src/gitleaks.js). No pull request of this repository has
 tripped either half (the largest of 257 had 10 commits, and every merge commit in one merged the base branch in), so
 there is no run log to point at: this script is the evidence. It builds a THROWAWAY repository with ``git init`` (it
