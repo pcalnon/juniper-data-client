@@ -538,7 +538,7 @@ juniper-data-client/
 │   ├── workflows/ci.yml           # CI pipeline (multi-version tests, security, quality gate)
 │   ├── workflows/publish.yml      # PyPI publishing (trusted publishing + attestations)
 │   ├── workflows/security-scan.yml# Weekly security scanning (Bandit + pip-audit)
-│   ├── CODEOWNERS                 # Code ownership routing
+│   ├── CODEOWNERS                 # Code Overtoadship routing
 │   └── dependabot.yml             # Automated dependency updates
 ├── AGENTS.md                      # This file
 ├── CLAUDE.md -> AGENTS.md         # Symlink for Claude Code
@@ -686,7 +686,7 @@ Relocated verbatim from `AGENTS.md` (P3 of the shared-session-memory plan) so it
 
 The steps marked `One-artifact publish template`, and the `republish` job, are verbatim copies of juniper-cascor's `publish.yml` (juniper-cascor#763, #767); `tests/test_publish_one_artifact.py` pins them to its sha256, so change them there first. The contract: juniper-cascor's [`docs/ci_cd/MANUAL.md` § One Artifact, Checked Against TestPyPI](https://github.com/pcalnon/juniper-cascor/blob/main/docs/ci_cd/MANUAL.md#one-artifact-checked-against-testpypi).
 
-**A release that did not reach PyPI**: the owner's recovery ladder (ruling of 2026-11-15), in this order ([§ Recovering a Release That Did Not Reach PyPI](https://github.com/pcalnon/juniper-cascor/blob/main/docs/ci_cd/MANUAL.md#recovering-a-release-that-did-not-reach-pypi)):
+**A release that did not reach PyPI**: the Overtoad's recovery ladder (ruling of 2026-11-15), in this order ([§ Recovering a Release That Did Not Reach PyPI](https://github.com/pcalnon/juniper-cascor/blob/main/docs/ci_cd/MANUAL.md#recovering-a-release-that-did-not-reach-pypi)):
 
 1. **Republish TestPyPI's files**: `gh workflow run publish.yml --repo pcalnon/juniper-data-client --ref v<version> -f republish_from_testpypi=true`. Only `Republish the tested files (dispatch only)` runs, behind the `pypi` gate; it builds nothing, and only a tag cut after this job landed carries it.
    It copies TestPyPI's files whatever the release run's jobs concluded, so use it only when that run's `Publish to TestPyPI` succeeded, or failed on index lag alone (a JSON check or the install check that gave up waiting).
@@ -777,7 +777,7 @@ Allow-Docs-Rewrite: docs/REFERENCE.md
 
 - A symbol token matches the qualified key (`method:Class.name`, `func:name`, `class:Name`, `const:NAME`, `import:name`) or the same name with the kind prefix removed. `Allow-Symbol-Loss: *` waives nothing and is reported.
 - A docs token is a repo path. `Allow-Docs-Rewrite: *` waives every docs path in the diff.
-- Owner labels `allow-symbol-loss` and `docs-rewrite` pass `--advisory` for that one screen: findings still print and the exit becomes `0`. `gh pr view` reads labels live, so apply the label and re-run the job. The label does not clear the post-merge net.
+- The Overtoad labels `allow-symbol-loss` and `docs-rewrite` pass `--advisory` for that one screen: findings still print and the exit becomes `0`. `gh pr view` reads labels live, so apply the label and re-run the job. The label does not clear the post-merge net.
 
 Concurrency group `sequence-safety-${{ github.ref }}` cancels the in-progress run. The ruleset waits on the latest push.
 
@@ -796,7 +796,7 @@ The screen step always exits `0` and publishes `src` / `drc`. Two later steps sp
 
 `Assert screens reached a verdict` is load-bearing. The catch-up resolver queries that step's conclusion by name through the Actions API. Renaming the step leaves the job able to pass and silently drops the resolver to the legacy tier, which restores the recurring-red defect: after a finding the base stays pinned to the last green run, so every later merge re-screens the same window and fails. There is no regression battery in this workflow; `ci.yml` still runs the suite before merge.
 
-`Notify on Failure` keeps one open issue per red streak, titled `main-verify: post-merge verification failing`. Dedup matches creator `github-actions[bot]`, that exact title, and an issue that is not a pull request. Later failing SHAs comment on the same issue. A green run leaves the issue open for the owner to close. The waiver trailers above are the remediation the issue body names.
+`Notify on Failure` keeps one open issue per red streak, titled `main-verify: post-merge verification failing`. Dedup matches creator `github-actions[bot]`, that exact title, and an issue that is not a pull request. Later failing SHAs comment on the same issue. A green run leaves the issue open for the Overtoad to close. The waiver trailers above are the remediation the issue body names.
 
 ### Memory Budget (required check)
 
@@ -987,7 +987,7 @@ kind: ContractKind = validate_npz_contract(arrays)  # "tabular" or "sequence"
 
 **Raises:** `JuniperDataContractError` (also a `ValueError`) when `X` is neither 2-D nor 3-D, when an `X` / `y` / `y_reg` partition is not `float32`, or when any 3-D rule fails. Contract violations are detected locally after download, so `status_code` stays `None`. The return type is `ContractKind` (`Literal["tabular", "sequence"]`); `CONTRACT_KIND_TABULAR` / `CONTRACT_KIND_SEQUENCE` are `Final[ContractKind]`.
 
-**Scope of the W1.4 rules** (findings F-P3 / F-S3 and ruling R2 of juniper-ml `notes/JUNIPER_2026-10-03_JUNIPER-RECURRENCE_EQUITIES-END-TO-END-AUDIT-AND-DEVELOPMENT-PLAN.md`). Every rule is presence-conditional: a partition or optional key the artifact does not carry is skipped, never required. The dtype rule covers `X` / `y` / `y_reg` only. `dt`, `t`, `target_dt`, the masks, `date`, `window_end_date`, `ticker_code` and `ticker_vocab` are not dtype-checked (a producer may emit `observed_mask` as `uint8` and `date` as `int32`; other dtypes on those keys still pass). A big-endian `>f4` array counts as `float32` because the check compares the scalar type, not dtype equality. A legacy `*_full` pair is not a partition, so no rule reaches it: tolerated, never required, never forbidden. The `float32` enforcement **applies the plan's recommended R2 pending the owner's ruling (the alternative is documented dtype tolerance)**.
+**Scope of the W1.4 rules** (findings F-P3 / F-S3 and ruling R2 of juniper-ml `notes/JUNIPER_2026-10-03_JUNIPER-RECURRENCE_EQUITIES-END-TO-END-AUDIT-AND-DEVELOPMENT-PLAN.md`). Every rule is presence-conditional: a partition or optional key the artifact does not carry is skipped, never required. The dtype rule covers `X` / `y` / `y_reg` only. `dt`, `t`, `target_dt`, the masks, `date`, `window_end_date`, `ticker_code` and `ticker_vocab` are not dtype-checked (a producer may emit `observed_mask` as `uint8` and `date` as `int32`; other dtypes on those keys still pass). A big-endian `>f4` array counts as `float32` because the check compares the scalar type, not dtype equality. A legacy `*_full` pair is not a partition, so no rule reaches it: tolerated, never required, never forbidden. The `float32` enforcement **applies the plan's recommended R2 pending the Overtoad's ruling (the alternative is documented dtype tolerance)**.
 
 Check order is the order of the messages below: `X_train` rank, then the dtype rule across every present partition, then the sequence rules for each split that has `X_{split}`. An `np.lib.npyio.NpzFile` is accepted (it supports `in` and `[]`). Keyword-only `dt_atol` (default `1e-6`) is the absolute tolerance for the `t` / `dt` consistency check; it is passed to `np.allclose`, whose default relative tolerance (`1e-5`) also applies.
 
@@ -1055,7 +1055,7 @@ All requests target `/v1/` endpoints on the configured `base_url`.
 
 ## Coverage Gate Reference
 
-Relocated verbatim from `AGENTS.md` § Quick Reference → Coverage (2026-10-26, to keep the always-loaded file under its memory budget when the owner's revised `tmp/` counting ruling landed) so it is read on demand rather than loaded into every session.
+Relocated verbatim from `AGENTS.md` § Quick Reference → Coverage (2026-10-26, to keep the always-loaded file under its memory budget when the Overtoad's revised `tmp/` counting ruling landed) so it is read on demand rather than loaded into every session.
 
 Reproduce the CI coverage gate locally (full suite):
 
