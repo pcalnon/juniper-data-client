@@ -777,7 +777,7 @@ Allow-Docs-Rewrite: docs/REFERENCE.md
 
 - A symbol token matches the qualified key (`method:Class.name`, `func:name`, `class:Name`, `const:NAME`, `import:name`) or the same name with the kind prefix removed. `Allow-Symbol-Loss: *` waives nothing and is reported.
 - A docs token is a repo path. `Allow-Docs-Rewrite: *` waives every docs path in the diff.
-- Owner labels `allow-symbol-loss` and `docs-rewrite` pass `--advisory` for that one screen: findings still print and the exit becomes `0`. `gh pr view` reads labels live, so apply the label and re-run the job. The label does not clear the post-merge net.
+- The Overtoad labels `allow-symbol-loss` and `docs-rewrite` pass `--advisory` for that one screen: findings still print and the exit becomes `0`. `gh pr view` reads labels live, so apply the label and re-run the job. The label does not clear the post-merge net.
 
 Concurrency group `sequence-safety-${{ github.ref }}` cancels the in-progress run. The ruleset waits on the latest push.
 
