@@ -538,7 +538,7 @@ juniper-data-client/
 │   ├── workflows/ci.yml           # CI pipeline (multi-version tests, security, quality gate)
 │   ├── workflows/publish.yml      # PyPI publishing (trusted publishing + attestations)
 │   ├── workflows/security-scan.yml# Weekly security scanning (Bandit + pip-audit)
-│   ├── CODEOWNERS                 # Code Overtoadship routing
+│   ├── CODEOWNERS                 # Code ownership routing
 │   └── dependabot.yml             # Automated dependency updates
 ├── AGENTS.md                      # This file
 ├── CLAUDE.md -> AGENTS.md         # Symlink for Claude Code

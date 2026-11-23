@@ -121,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   merges brought in (Overtoad ruling 10, juniper-ml
   `notes/JUNIPER_2026-11-06_JUNIPER-ECOSYSTEM_CURSOR-FLOOD-4-DISPOSITION.md` §8: the port of
   juniper-data#530).** gitleaks-action v3.0.0 lists a pull request's commits with one unpaginated
-  `GET /repos/{Overtoad}/{repo}/pulls/{pull_number}/commits` (30 per page, oldest first) and scans
+  `GET /repos/{owner}/{repo}/pulls/{pull_number}/commits` (30 per page, oldest first) and scans
   `--no-merges --first-parent <page[0]>^..<page[-1]>` (`src/gitleaks.js` at `e0c47f4f…`). Commit 31
   onwards is never scanned, and on a pull request of any length `--first-parent` from the page's
   last commit drops every commit a merge brought into the branch: on juniper-ml#1797 (88 commits)
