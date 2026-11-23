@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **CI runs the unit and integration tests on Python 3.15 as well, as informational legs that block nothing.** Phase 1
-  of the ecosystem's Python 3.15 migration (the owner's request of 2026-11-14): 3.15 results are reported, and no
+  of the ecosystem's Python 3.15 migration (the Overtoad's request of 2026-11-14): 3.15 results are reported, and no
   merge, commit or deployment waits on them.
   - `.github/workflows/ci.yml`: `unit-tests` gains `Unit Tests + Coverage (Python 3.15 on ubuntu-latest)` and
     `integration-tests` gains `Integration Tests (Python 3.15)`, each an `include` entry with `experimental: true`.
@@ -29,13 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `docs/REFERENCE.md` describes the legs.
 
 ### Changed
-- **`agents-md-touch-up.yml` pins `actions/checkout` to a commit SHA (owner ruling 2026-11-03).** It checked out with
+- **`agents-md-touch-up.yml` pins `actions/checkout` to a commit SHA (Overtoad ruling 2026-11-03).** It checked out with
   the `v7.0.1` tag, the only tag-only `actions/checkout` in `.github/workflows/`. It now uses
   `3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1`, the commit that tag resolves to and the pin every other
   workflow here uses, so behaviour is unchanged. A census of the nine Juniper repositories' `main` on 2026-11-01 found
   249 `actions/checkout` uses, 242 pinned to that SHA; the seven tag-only ones were this workflow's copies, one per
   repository. juniper-data#503 pinned juniper-data's, and this change is one of the seven that pin the rest.
-- **A failed Bandit SARIF upload, or a missing SARIF, now fails `Security Scans` on a pull request (owner ruling
+- **A failed Bandit SARIF upload, or a missing SARIF, now fails `Security Scans` on a pull request (Overtoad ruling
   2026-10-30).** `.github/workflows/ci.yml`'s upload step is
   `continue-on-error: ${{ github.event_name != 'pull_request' }}`, as in juniper-cascor#735, and on a PR it runs even
   when bandit wrote no SARIF. The required `Bandit` check is created by code scanning from that upload, so before this
@@ -43,11 +43,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that never posted while `Security Scans` stayed green. Every other event keeps the old tolerance: the `hashFiles`
   guard skips the step when there is no SARIF, and a failed upload leaves the job green. Found in the 2026-10-08
   flood-3 disposition (juniper-ml `notes/JUNIPER_2026-10-08_JUNIPER-ECOSYSTEM_CURSOR-FLOOD-3-DISPOSITION.md` §8).
-- **Temporary files go in the repo's gitignored `tmp/`, never `/tmp` (owner directive, 2026-10-26), and the
-  owner's rulings on it are applied.** `/tmp/` is ignored, and `AGENTS.md` § Temporary files carries the rule
+- **Temporary files go in the repo's gitignored `tmp/`, never `/tmp` (Overtoad directive, 2026-10-26), and the
+  Overtoad's rulings on it are applied.** `/tmp/` is ignored, and `AGENTS.md` § Temporary files carries the rule
   and the rulings, retention included. `juniper-check-doc-links` passes `--exclude tmp` in the pre-commit hook
   and in CI; nothing keeps pytest out of it, and counting scripts are to choose their scope as to `tmp/`
-  deliberately (the owner's revised ruling). The repo builds no Docker image. To stay under the memory budget,
+  deliberately (the Overtoad's revised ruling). The repo builds no Docker image. To stay under the memory budget,
   `AGENTS.md`'s Coverage notes moved verbatim to `docs/REFERENCE.md`.
 
 ### Fixed
@@ -66,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `@pytest.mark.integration` test (the last green run, on 2026-10-27, deselected all 531), so each leg ends on that
     notice until it grows one.
 
-- **The informational Python 3.15 legs no longer show as failed checks when they fail** (the owner's report of
+- **The informational Python 3.15 legs no longer show as failed checks when they fail** (the Overtoad's report of
   2026-11-15: the 3.15 checks "are supposed to produce an informational message without affecting the ability of
   code to commit, push, PR, or merge"). #261's job-level `continue-on-error` keeps the Quality Gate green, but a
   failing 3.15 leg's own check still concluded `failure`: a red X and "Some checks were not successful" on the pull
@@ -118,7 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   this one.
 - **A pull request's Gitleaks scan now covers every commit in its `base..head` range, and what its
   merge commits changed themselves; gitleaks-action stopped at the 30th commit and dropped what
-  merges brought in (owner ruling 10, juniper-ml
+  merges brought in (Overtoad ruling 10, juniper-ml
   `notes/JUNIPER_2026-11-06_JUNIPER-ECOSYSTEM_CURSOR-FLOOD-4-DISPOSITION.md` §8: the port of
   juniper-data#530).** gitleaks-action v3.0.0 lists a pull request's commits with one unpaginated
   `GET /repos/{owner}/{repo}/pulls/{pull_number}/commits` (30 per page, oldest first) and scans
@@ -169,7 +169,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     allows.
   - Docs: `docs/REFERENCE.md` § Secret scan (Gitleaks), new.
 - **PyPI now receives the files TestPyPI took: `publish.yml` builds once, and the run checks every upload by sha256
-  against TestPyPI** (the owner's directive of 2026-11-15: "deploy to pypi should send the same artifact that was
+  against TestPyPI** (the Overtoad's directive of 2026-11-15: "deploy to pypi should send the same artifact that was
   already sent to testpypi. an identical hash check, of the artifacts after testpypi deploy and prior to pypi deploy,
   might also be helpful here to prevent this from slipping through the cracks again."). `publish.yml` ran
   `python -m build` in its TestPyPI job and again in its PyPI job, so PyPI served a second build of every release:
@@ -194,7 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Only the jobs that upload hold `id-token: write`.** The workflow's `permissions` is `{}`: `Build and Validate`
     gets `contents: read` and `actions: read`, `Publish to TestPyPI` `contents: read` and `id-token: write`, and
     `Publish to PyPI` `id-token: write`.
-  - **Recovery, in the owner's order (ruling of 2026-11-15).** A `workflow_dispatch` from the release tag with
+  - **Recovery, in the Overtoad's order (ruling of 2026-11-15).** A `workflow_dispatch` from the release tag with
     `republish_from_testpypi` runs only `Republish the tested files (dispatch only)`, behind the same `pypi` gate: it
     copies TestPyPI's files for the version to PyPI, each checked against TestPyPI's JSON and, while it exists, the
     release run's `SHA256SUMS`, and builds nothing. It copies those files whatever the release run concluded, so it
@@ -223,7 +223,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dtype, and in `[1, L]`, where `L` is the matching `X_*`'s window length. **`X_*` / `y_*` /
   `y_reg_*` must be `float32`** in every partition present, **on the 2-D path too**, so the tabular
   path is no longer "no further checks". The `float32` rule **applies the plan's recommended R2
-  pending the owner's ruling (the alternative is documented dtype tolerance)**. It compares the
+  pending the Overtoad's ruling (the alternative is documented dtype tolerance)**. It compares the
   scalar type, so a big-endian `>f4` array passes, and it deliberately does not reach `dt`, `t`,
   `target_dt`, the masks, `date`, `window_end_date`, `ticker_code` or `ticker_vocab`, which the
   producer emits in their own dtypes. A legacy `X_full` / `y_full` pair is still neither required
