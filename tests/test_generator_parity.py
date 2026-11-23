@@ -171,7 +171,7 @@ class TestPinnedMirrorMatchesLiveRegistry:
         live = _live_server_generators()
         if live is None:
             if _requires_live_registry():
-                pytest.fail(f"{REQUIRE_LIVE_REGISTRY_ENV} is set, so this lane exists to cross-check the pinned " "mirror against the live registry — but juniper-data is not importable here, so the " "cross-check would have SKIPPED and the lane would have reported success having " "verified nothing. Install juniper-data in this lane, or unset the switch.")
+                pytest.fail(f"{REQUIRE_LIVE_REGISTRY_ENV} is set, so this lane exists to cross-check the pinned mirror against the live registry — but juniper-data is not importable here, so the cross-check would have SKIPPED and the lane would have reported success having verified nothing. Install juniper-data in this lane, or unset the switch.")
             pytest.skip("juniper-data not importable here — pinned mirror not cross-checked")
         assert EXPECTED_SERVER_GENERATORS == live, f"Pinned mirror drifted from the live server registry. Missing from mirror: {sorted(live - EXPECTED_SERVER_GENERATORS)}; stale in mirror: {sorted(EXPECTED_SERVER_GENERATORS - live)}"
 
