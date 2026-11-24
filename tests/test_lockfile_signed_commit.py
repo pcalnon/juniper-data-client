@@ -18,6 +18,14 @@ The step writes its mutation and result under the runner's ``/tmp/``. Each
 test rewrites that prefix to its own scratch directory, so a run writes
 nothing under ``/tmp`` and two runs never share a file.
 
+``gh api graphql`` exits 1 on a response that carries GraphQL ``errors`` and
+on an HTTP failure, after writing the body to stdout and ``gh: <message>`` to
+stderr (cli/cli ``pkg/cmd/api/api.go``, ``processResponse``). The stub fails
+the same way. Called bare under ``set -e``, that exit ended the step before its
+own diagnostic; the step now captures gh's status and stderr, prints the
+diagnostic, and fails, with the token's value masked in anything gh printed
+(juniper-canopy#814).
+
 Project: juniper-data-client
 """
 
@@ -43,15 +51,18 @@ RUNNER_TMP = "/tmp/"  # nosec B108 - the prefix the step hardcodes; each test re
 COMMIT_JSON_NAME = "lockfile-commit.json"
 RESULT_JSON_NAME = "lockfile-commit-result.json"
 HEADLINE = "[dependabot skip] Update requirements.lock"
+STALE = 'Expected branch to point to "abc" but it did not. Pull and try again.'
 
+# The real CLI's order: the response body on stdout, then, when it fails, its message on stderr
+# and the exit status (``GH_RC``, 1 unless a test names another).
 GH_STUB = """#!/bin/bash
 printf '%s\\0' "$@" >> "$GH_LOG"
 printf '\\036' >> "$GH_LOG"
+printf '%s' "${GH_BODY:-}"
 if [ "${GH_FAIL:-0}" = "1" ]; then
   printf '%s\\n' "${GH_ERR:-gh transport failed}" >&2
-  exit 1
+  exit "${GH_RC:-1}"
 fi
-printf '%s' "${GH_BODY:-}"
 exit 0
 """
 
@@ -307,7 +318,8 @@ class TestLockfileSignedCommit(unittest.TestCase):
             (repo / "requirements.lock").write_text(new_text, encoding="utf-8")
             proc = self._run(repo, root / "bin", GH_BODY=json.dumps(success))
             self.assertEqual(proc.returncode, 0, msg=proc.stdout + proc.stderr)
-            self.assertIn(success["data"]["createCommitOnBranch"]["commit"]["url"], proc.stdout)
+            self.assertEqual(proc.stdout, "Signed lockfile commit: " + success["data"]["createCommitOnBranch"]["commit"]["url"] + "\n")
+            self.assertEqual(proc.stderr, "")
             self.assertNotIn(TOKEN, proc.stdout + proc.stderr)
             self.assertEqual(_git(repo, "rev-parse", "HEAD"), head)
             self.assertNotEqual((repo / "requirements.lock").read_text(encoding="utf-8"), "pinned==1\n")
@@ -332,7 +344,13 @@ class TestLockfileSignedCommit(unittest.TestCase):
             self.assertNotIn(TOKEN, calls[0])
 
     def test_graphql_errors_fail_and_do_not_claim_success(self) -> None:
-        """A 200 body with ``errors`` is still a failed commit. gh exits 0 for that shape."""
+        """A 200 body with ``errors`` from a gh that exits 0 is still a failed commit.
+
+        The real CLI exits 0 on such a body only when it finds no message to print, for
+        example a single error without a ``message`` (api.go ``parseErrorResponse``); on
+        this body it exits 1. That shape is
+        ``test_a_graphql_error_that_fails_gh_prints_the_steps_diagnostic``.
+        """
         body = {
             "data": {"createCommitOnBranch": None},
             "errors": [{"message": "expectedHeadOid mismatch"}],
@@ -362,6 +380,94 @@ class TestLockfileSignedCommit(unittest.TestCase):
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("api unavailable", proc.stderr)
             self.assertNotIn("Signed lockfile commit", proc.stdout)
+
+    def _commit_with_gh(self, *, body: str, fail: bool, gh_err: str = "", gh_rc: int = 1) -> subprocess.CompletedProcess[str]:
+        """Run the step on a changed lockfile against a gh that prints ``body`` and, when ``fail``, fails as the real CLI does."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            _init_repo(repo, "pinned==1\n")
+            (repo / "requirements.lock").write_text("pinned==2\n", encoding="utf-8")
+            _encoder_for_host(root / "bin")
+            env = {"GH_BODY": body}
+            if fail:
+                env.update(GH_FAIL="1", GH_ERR=gh_err, GH_RC=str(gh_rc))
+            proc = self._run(repo, root / "bin", **env)
+        self.assertNotIn(TOKEN, proc.stdout + proc.stderr, "the commit step printed the token")
+        return proc
+
+    def test_a_graphql_error_that_fails_gh_prints_the_steps_diagnostic(self) -> None:
+        """The real CLI's shape: the ``errors`` body on stdout, ``gh: <message>`` on stderr, exit 1.
+
+        A bare ``gh api graphql`` under ``set -e`` ended the step at that exit, so the step's
+        own ``createCommitOnBranch failed`` diagnostic never printed.
+        """
+        body = {"data": {"createCommitOnBranch": None}, "errors": [{"type": "STALE_DATA", "message": STALE}]}
+        proc = self._commit_with_gh(body=json.dumps(body), fail=True, gh_err=f"gh: {STALE}")
+        self.assertEqual(proc.returncode, 1, msg=proc.stdout + proc.stderr)
+        self.assertIn(f"gh: {STALE}", proc.stderr)
+        self.assertIn("::error::createCommitOnBranch failed", proc.stdout)
+        self.assertIn("lockfile NOT committed", proc.stdout)
+        self.assertIn("STALE_DATA", proc.stdout)
+        self.assertIn("gh exited 1", proc.stdout)
+        self.assertIn("re-run this job", proc.stdout)
+        self.assertNotIn("gh api graphql failed", proc.stdout + proc.stderr)
+        self.assertNotIn("Signed lockfile commit", proc.stdout)
+
+    def _assert_the_commit_is_unknown(self, proc: subprocess.CompletedProcess[str], gh_err: str, printed: str, names_the_token: bool) -> None:
+        """No GraphQL ``errors``: an HTTP failure is not proof that the mutation did not run, so nothing says it was not committed."""
+        self.assertEqual(proc.returncode, 1, msg=proc.stdout + proc.stderr)
+        self.assertIn(gh_err, proc.stderr)
+        self.assertIn("::error::gh api graphql failed (exit 1)", proc.stdout)
+        self.assertIn("cannot show whether the lock commit landed", proc.stdout)
+        self.assertIn(printed, proc.stdout)
+        self.assertIn(f"Check {BRANCH} for the lock commit", proc.stdout)
+        self.assertEqual("CROSS_REPO_DISPATCH_TOKEN is invalid or expired" in proc.stdout, names_the_token)
+        self.assertNotIn("createCommitOnBranch failed", proc.stdout + proc.stderr)
+        self.assertNotIn("Signed lockfile commit", proc.stdout)
+
+    def test_an_http_failure_prints_that_the_commit_is_unknown_http_502_html(self) -> None:
+        proc = self._commit_with_gh(body="<html>502 Bad Gateway</html>\n", fail=True, gh_err="gh: HTTP 502")
+        self._assert_the_commit_is_unknown(proc, "gh: HTTP 502", "empty or not JSON", names_the_token=False)
+
+    def test_an_http_failure_prints_that_the_commit_is_unknown_http_401_json(self) -> None:
+        proc = self._commit_with_gh(body=json.dumps({"message": "Bad credentials", "status": "401"}), fail=True, gh_err="gh: Bad credentials (HTTP 401)")
+        self._assert_the_commit_is_unknown(proc, "gh: Bad credentials (HTTP 401)", '"Bad credentials"', names_the_token=True)
+
+    def test_an_http_failure_prints_that_the_commit_is_unknown_no_response(self) -> None:
+        proc = self._commit_with_gh(body="", fail=True, gh_err="error connecting to api.github.com")
+        self._assert_the_commit_is_unknown(proc, "error connecting to api.github.com", "empty or not JSON", names_the_token=False)
+
+    def test_gh_output_is_printed_with_the_token_masked(self) -> None:
+        """What gh printed reaches the log through the step's mask; ``_commit_with_gh`` refuses the token."""
+        message = f"token {TOKEN} lacks access ({TOKEN})"
+        proc = self._commit_with_gh(body=json.dumps({"errors": [{"type": "FORBIDDEN", "message": message}]}), fail=True, gh_err=f"gh: {message}")
+        self.assertEqual(proc.returncode, 1, msg=proc.stdout + proc.stderr)
+        self.assertIn("gh: token *** lacks access (***)", proc.stderr)
+        self.assertIn("token *** lacks access (***)", proc.stdout)
+        self.assertIn("createCommitOnBranch failed", proc.stdout)
+
+    def test_an_http_failure_body_is_printed_with_the_token_masked(self) -> None:
+        """The HTTP-failure branch prints a JSON body through the same mask as gh's message."""
+        proc = self._commit_with_gh(body=json.dumps({"message": f"bad token {TOKEN}", "status": "403"}), fail=True, gh_err=f"gh: bad token {TOKEN} (HTTP 403)")
+        self.assertEqual(proc.returncode, 1, msg=proc.stdout + proc.stderr)
+        self.assertIn("gh: bad token *** (HTTP 403)", proc.stderr)
+        self.assertIn("gh api graphql failed (exit 1)", proc.stdout)
+        self.assertIn('"bad token ***"', proc.stdout)
+
+    def test_the_diagnostic_names_the_exit_status_gh_gave_exit_4_no_token(self) -> None:
+        """gh exits 4 when it has no usable token (cli/cli ``internal/ghcmd/cmd.go``, ``exitAuth``); the step exits 1."""
+        proc = self._commit_with_gh(body="", fail=True, gh_err="gh: set the GH_TOKEN environment variable", gh_rc=4)
+        self.assertEqual(proc.returncode, 1, msg=proc.stdout + proc.stderr)
+        self.assertIn("gh api graphql failed (exit 4)", proc.stdout)
+        self.assertNotIn("Signed lockfile commit", proc.stdout)
+
+    def test_the_diagnostic_names_the_exit_status_gh_gave_exit_0_errors_without_a_message(self) -> None:
+        """gh exits 0 on an ``errors`` body that carries no message; the diagnostic says so, and the step exits 1."""
+        proc = self._commit_with_gh(body=json.dumps({"errors": [{"type": "X"}]}), fail=False)
+        self.assertEqual(proc.returncode, 1, msg=proc.stdout + proc.stderr)
+        self.assertIn("gh exited 0", proc.stdout)
+        self.assertNotIn("Signed lockfile commit", proc.stdout)
 
     def test_invalid_graphql_json_fails_closed(self) -> None:
         """An unparseable result must not be reported as a signed commit."""
