@@ -101,6 +101,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   payload.
   Found by the flood-3 evaluation (juniper-ml
   `notes/JUNIPER_2026-10-08_JUNIPER-ECOSYSTEM_CURSOR-FLOOD-3-DISPOSITION.md` §4).
+- **The lockfile regen's own failure message could never print: a GraphQL error ended the step at the
+  `gh` line** (`lockfile-update.yml`, banner 0.1.1). `gh api graphql` exits 1, not 0, on a response
+  that carries GraphQL `errors` (it writes the body to stdout and `gh: <message>` to stderr; cli/cli
+  `pkg/cmd/api/api.go`, `processResponse`), and on an HTTP failure. Called bare under
+  `set -euo pipefail`, that exit ended the commit step before its `.errors` check, so
+  `createCommitOnBranch failed — lockfile NOT committed:` was unreachable and the log would show only
+  gh's line. The step now captures gh's exit status and stderr, prints gh's message with the
+  `CROSS_REPO_DISPATCH_TOKEN` value masked, and fails with its own diagnostic: the GraphQL `errors`,
+  gh's exit status and what to do, or, when the response carries no `errors`, `gh api graphql failed`
+  and the branch to check, because that log cannot show whether the commit landed. A successful run
+  prints what it printed before. **Latent**: this repo tracks no `requirements.lock`, so the step has
+  never reached gh. `tests/test_lockfile_signed_commit.py`'s stub gh now fails as the real CLI does
+  (the body on stdout, then its message on stderr, then the exit status), and eight new cases pin both
+  diagnostics, the mask and gh's exit status; all eight fail against the old step, where the nine
+  existing cases pass. A port of juniper-canopy#814, under the Overtoad's ruling 26 (2026-11-12) of
+  the Cursor flood-4 evaluation.
 - **Three workflow headers described behaviour their workflows do not have.** `pr-budget-alarm.yml`
   said a `jq` failure is downgraded to a warning and a green run, as a `gh` failure is. The count
   step runs under `set -euo pipefail`, so a `jq` failure fails the step, which
