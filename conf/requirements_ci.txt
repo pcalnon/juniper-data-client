@@ -42,7 +42,7 @@
 # COMPLETED:
 #
 #####################################################################################################################################################################################################
-annotated-doc==0.0.6
+annotated-doc==0.0.7
 annotated-types==0.8.0
 anyio==4.16.0
 arc-agi==0.9.10
@@ -51,7 +51,7 @@ attrs==26.1.0
 bandit==1.9.4
 black==26.10.1
 boolean.py==5.0
-CacheControl==0.14.4
+CacheControl==0.15.0
 cached-property==2.0.1
 certifi==2026.10.23
 cfgv==3.5.0
@@ -65,11 +65,11 @@ cyclonedx-python-lib==11.12.0
 defusedxml==0.7.1
 dill==0.4.1
 distlib==0.4.4
-exceptiongroup==1.3.1
-fastapi==0.162.6
-filelock==4.2.10
+exceptiongroup==1.3.2
+fastapi==0.165.0
+filelock==4.2.12
 flake8==7.5.0
-flake8-bugbear==26.11.9
+flake8-bugbear==26.11.16
 flake8-comprehensions==3.17.0
 flake8_simplify==0.31.1
 fonttools==4.68.0
@@ -88,7 +88,7 @@ jsonpickle==4.1.4
 juniper-data==0.17.1
 juniper-data-client==0.6.0
 kiwisolver==1.5.1
-librt==0.16.0
+librt==0.17.0
 license-expression==30.4.4
 markdown-it-py==4.3.0
 matplotlib==3.11.2
@@ -98,7 +98,7 @@ msgpack==1.2.4
 mypy==2.4.1
 mypy_extensions==1.2.0
 nodeenv==1.12.0
-numpy==2.5.4
+numpy==2.5.5
 packageurl-python==0.17.6
 packaging==26.3
 pathspec==1.1.1
@@ -108,7 +108,7 @@ pip==26.3
 pip-api==0.0.35
 pip_audit==2.10.1
 pip-requirements-parser==32.0.1
-platformdirs==4.14.5
+platformdirs==4.14.8
 pluggy==1.7.0
 pre_commit==4.7.0
 prometheus_client==0.26.0
@@ -116,8 +116,8 @@ psutil==7.2.2
 py-cpuinfo==9.0.0
 py-serializable==2.2.0
 pycodestyle==2.15.0
-pydantic==2.14.3
-pydantic_core==2.50.4
+pydantic==2.14.4
+pydantic_core==2.50.5
 pydantic-settings==2.16.3
 pyflakes==4.1.0
 Pygments==2.21.0
@@ -134,7 +134,7 @@ PyYAML==6.0.3
 requests==2.34.2
 responses==0.26.3
 rich==15.0.0
-ruff==0.17.5
+ruff==0.17.6
 sarif-om==1.0.4
 sentry-sdk==2.75.0
 setuptools==84.2.1
@@ -150,7 +150,7 @@ typing-inspection==0.4.5
 urllib3==2.8.0
 uvicorn==0.54.0
 uvloop==0.23.0
-virtualenv==21.15.6
+virtualenv==21.15.9
 watchfiles==1.3.0
 websockets==17.4
 zipp==4.1.2
