@@ -4,7 +4,7 @@
 
 **Version:** 0.5.4
 **Status:** Active
-**Last Updated:** November 16, 2026
+**Last Updated:** November 26, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -38,6 +38,7 @@
 - [Environment Variables](#environment-variables)
 - [Coverage Gate Reference](#coverage-gate-reference)
 - [Test Markers and Commands](#test-markers-and-commands)
+- [Running Tests Locally](#running-tests-locally)
 
 ---
 
@@ -1066,6 +1067,8 @@ bash util/run_coverage.bash   # source of truth (mirrors .github/workflows/ci.ym
 
 Gate: 80% aggregate (override with `COVERAGE_FAIL_UNDER=<n>`). The script runs the full suite by design so the percentage matches CI; for a narrower run use plain `pytest`.
 
+`python3 util/run_tests.py unit` runs the same gate with the commands `ci.yml` runs, the per-file gate included: see [Running Tests Locally](#running-tests-locally).
+
 ---
 
 ## Test Markers and Commands
@@ -1073,6 +1076,7 @@ Gate: 80% aggregate (override with `COVERAGE_FAIL_UNDER=<n>`). The script runs t
 ### Running Tests
 
 ```bash
+python3 util/run_tests.py           # CI's test lanes, as CI runs them: see Running Tests Locally
 pytest tests/ -v                    # All tests
 pytest tests/ -m unit -v            # Unit tests only
 pytest tests/ --cov=juniper_data_client --cov-report=term-missing --cov-fail-under=80
@@ -1087,6 +1091,7 @@ pytest tests/ --cov=juniper_data_client --cov-report=term-missing --cov-fail-und
 | `tests/test_contract.py` | `validate_npz_contract` raise sites |
 | `tests/test_retry_policy.py` | `RETRY_ALLOWED_METHODS` / `RETRYABLE_STATUS_CODES` |
 | `tests/test_gitleaks_pr_scan.py` | The `Security Scans` job's Gitleaks wiring and its pull-request scan step; see [Secret scan (Gitleaks)](#secret-scan-gitleaks) |
+| `tests/test_run_tests.py` | `util/run_tests.py`, the local test runner; see [Running Tests Locally](#running-tests-locally) |
 | `tests/conftest.py` | Shared fixtures |
 
 ### Quality Checks
@@ -1100,6 +1105,70 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** November 16, 2026
+## Running Tests Locally
+
+`util/run_tests.py` runs any subset of this repo's tests with the commands CI runs. It reads them from the workflows on every run, so it cannot drift from CI. It installs nothing: install the `[test]` extra (`pip install -e ".[test]"`) and `juniper-ci-tools` (the per-file gate) into the environment you run it with.
+
+```bash
+python3 util/run_tests.py                       # what a pull request gates on: unit-tests and integration-tests
+python3 util/run_tests.py unit                  # the unit tests, then the coverage floor and the per-file gate
+python3 util/run_tests.py client -- -x -vv      # tests/test_client.py alone (gates off); after -- goes to pytest
+python3 util/run_tests.py --changed             # the lanes and test files the branch touches (vs origin/main)
+python3 util/run_tests.py --failed              # the failures of the last run, again
+python3 util/run_tests.py --help                # every selector, option and exit code
+```
+
+**Lanes.** Each lane is a workflow job that runs pytest, named by its job id:
+
+| Selector | What it runs |
+|---|---|
+| `unit-tests` (`unit`) | `ci.yml`'s unit tests: pytest on `tests/` with coverage, then `coverage report --fail-under=${COVERAGE_FAIL_UNDER}` (80, from the workflow's `env:`) and `juniper-coverage-gap-map --enforce`. `tests` names it too |
+| `integration-tests` (`integration`) | `ci.yml`'s `-m integration` run. Exit 5 (no tests collected, which is today's state) passes, as the step's `rc=$?` rule makes it pass in CI |
+| `generator-parity` | optional: `tests/test_generator_parity.py` with `JUNIPER_DATA_CLIENT_REQUIRE_LIVE_REGISTRY=1`, which makes its skip a failure. Needs `juniper-data[api]` installed; no service runs, as the test imports juniper-data's registry |
+| `security` | optional: the `Security Scans` job's test step, `tests/test_gitleaks_pr_scan.py` with `GITLEAKS_PARITY_REQUIRED=1`. Needs the gitleaks binary on `PATH`, or named by `GITLEAKS_BIN`. The job's Bandit, pip-audit and Gitleaks scans are left out: they run no test, and pre-commit runs Bandit and Gitleaks locally |
+| `slow-or-integration-tests` (`slow-or-integration`) | optional: `scheduled-tests.yml`'s nightly `-m integration` run, which CI never runs on a pull request |
+| `all` (the default) | `unit-tests` and `integration-tests`: every lane a pull request gates on that the `[test]` extra can run |
+| `optional` | `generator-parity`, `security` and `slow-or-integration-tests`; each runs only when named |
+| `unittest` | every suite a workflow runs with `python3 -m unittest`: none today, as every test here is pytest's |
+
+A test file under `tests/` can be named by path, file name or stem (`tests/test_client.py`, `test_client.py`, `test_client`, `client`), by a glob (`'*gitleaks*'`), or narrowed to a class or test (`tests/test_client.py::TestHealthEndpoints`, or `tests.test_client.TestHealthEndpoints`). `unit-tests`' pytest then runs on it alone, with the coverage gates off.
+
+**How a lane is read.** A job's steps that run pytest, `coverage report` or a command given `--coverage-json` are its commands. `--list` names every other step as left out, and a left-out step that runs a test is refused instead, so no test is dropped unseen. The runner expands `${{ env.NAME }}`, `$NAME` and `${NAME}` from the workflow's, the job's and the step's `env:` blocks, runs each step with those variables set, and reads the rc-capture idiom (`set +e`, the command, `rc=$?`, `if [ "$rc" = "5" ]; then exit 0; fi`, `exit "$rc"`) as "exit 5 passes". A command it still cannot run without a shell is a usage error that names the step: teach the runner that shape in the same change.
+
+**How it runs.** Every selected job runs (CI stops at the first failure), each step in its own process group with stdin from /dev/null, `-j auto` jobs at a time. A job that fails alongside others is re-run alone, and passes as `RERUN-PASS` if it then passes. Each child gets `PYTHONPATH` set to this checkout, so a lane tests this checkout's code: the preflight refuses a lane whose package would import from somewhere else, and names any missing requirement with the `pip install` that adds it. `TMPDIR` is never the system temp directory, `DISPLAY` and `WAYLAND_DISPLAY` are removed, and the D-Bus session address points nowhere. The coverage data, every `--cov-report` file and the `--junitxml` report go to the run directory, never into the checkout, whose `reports/` is not gitignored.
+
+| Option | Effect |
+|---|---|
+| `-k EXPR` | only tests whose name matches (pytest `-k` / unittest `-k`; repeatable). Turns the coverage gates off |
+| `--changed`, `--base REF` | add what the branch touches, against the merge base with `--base` (default `origin/main`): each gating lane whose workflow, installed package, `pyproject.toml` or test directory a changed file is in, else the test files that name a changed file |
+| `--failed`, `--lf` | add the jobs that failed or timed out in the last recorded run of this checkout |
+| `-l`, `--list` | list what the selectors select, the steps left out and why a lane is optional, and exit |
+| `-j N`, `--jobs N` | jobs at once (`auto`: half the CPUs, at most 8). `-j 1` runs them in order |
+| `-x`, `--fail-fast` | start nothing new after the first failure |
+| `--timeout SECONDS` | per step (default 900; `0`: none); the step's process group is killed when it expires |
+| `--no-rerun` | do not re-run a failed job alone |
+| `--no-coverage` | run pytest without coverage and skip the coverage gates |
+| `--python PATH` | the interpreter for every command (default: the one running the script), for example `"$VIRTUAL_ENV/bin/python"` |
+| `-n`, `--dry-run` | print the environment, the preflight and every command; run and write nothing |
+| `--clean-env` | also remove `CLAUDE*`, `JUNIPER_*` and `WTC_*` variables from the children, as on a CI runner |
+| `--tmpdir DIR` | the children's `TMPDIR` (default: the inherited one, else the primary checkout's `tmp/`) |
+| `-s`, `--stream` | show each step's output live (the default when one job is selected) |
+| `-q`, `--quiet` | print only failures and the summary |
+| `--tail N` | lines of a failing step's output to print (default 30) |
+| `--color WHEN` | `auto`, `always` or `never` |
+| `--log-dir DIR` | where run directories go |
+| `--checkout DIR` | the checkout to test (default: the one holding the script) |
+
+Arguments after `--` go to the runner of the selected jobs (`-- -x -vv` for pytest).
+
+**Records.** Each run writes one log per step, `summary.json` (schema 1) and `summary.txt` under the primary checkout's `tmp/run-tests/<checkout name>/<UTC stamp>/`, with a `latest` link, and each lane's coverage data, coverage reports and JUnit XML beside its logs. Nothing is pruned.
+
+**Exit codes.** `0` passed; `1` a job failed or timed out; `2` a usage error, or a workflow the runner cannot read; `3` nothing failed, but a lane could not run (UNAVAILABLE); `5` `-k` matched no test; `130` interrupted.
+
+The runner is a copy of juniper-recurrence's `util/run_tests.py` (itself a copy of juniper-ml's), adapted to this repo's workflows. Its own suite is `tests/test_run_tests.py`, which the `unit-tests` job collects with the rest of `tests/`. `util/run_coverage.bash` (`make coverage`) still reproduces the coverage floor on its own.
+
+---
+
+**Last Updated:** November 26, 2026
 **Version:** 0.5.4
 **Maintainer:** Paul Calnon

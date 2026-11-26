@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`util/run_tests.py` runs any subset of the tests locally, with the commands CI runs.** The second of the per-repo
+  copies the Overtoad ruled on 2026-11-25: juniper-recurrence's runner (juniper-recurrence#240), itself juniper-ml's
+  (juniper-ml#2629), adapted to this repo's workflows. It reads `.github/workflows/` on every run, so its lanes
+  cannot drift from CI's, and it installs nothing.
+  - **A lane is a workflow job that runs pytest:** `unit-tests`, `integration-tests`, `generator-parity`, `security`
+    and `slow-or-integration-tests`. A lane runs its job's test steps as CI does: pytest with CI's options, the coverage
+    floor (`coverage report --fail-under=${COVERAGE_FAIL_UNDER}`, expanded from the workflow's `env:`), the per-file
+    gate, the integration steps' `rc=$?` rule (exit 5 passes), and each step's own `env:` block. Bandit, pip-audit,
+    the Gitleaks scan and the import probe run no test, so they are left out, and `--list` names them.
+  - **`all`, the default, is `unit-tests` and `integration-tests`.** `generator-parity` (needs `juniper-data[api]`)
+    and `security` (needs the gitleaks binary) re-run one test file with the variable that turns its skip into a
+    failure, and `slow-or-integration-tests` runs only nightly in CI: each runs when named, or with `optional`.
+  - Coverage data, the `--cov-report` files and the JUnit XML go to the run directory under the primary checkout's
+    `tmp/run-tests/`, never into the checkout, whose `reports/` is not gitignored.
+  - `tests/test_run_tests.py` (62 tests, collected by `unit-tests`) pins the runner against the real workflows and
+    against a fake checkout whose `pytest`, `coverage` and gate are stubs. `docs/REFERENCE.md` § Running Tests
+    Locally documents it, and `AGENTS.md` points at it.
+  - Measured locally under Python 3.14.7:
+    - `all` passed in 1m07s. `unit-tests` had 677 passed and 18 skipped, with both coverage gates (99.68% total);
+      `integration-tests` had 695 deselected, so exit 5 passed.
+    - `generator-parity` had 38 passed.
+    - `security` had 25 passed, with `GITLEAKS_BIN` naming a gitleaks binary.
 - **CI runs the unit and integration tests on Python 3.15 as well, as informational legs that block nothing.** Phase 1
   of the ecosystem's Python 3.15 migration (the Overtoad's request of 2026-11-14): 3.15 results are reported, and no
   merge, commit or deployment waits on them.
