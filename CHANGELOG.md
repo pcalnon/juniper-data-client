@@ -222,6 +222,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     what this workflow kept, each job's exact step list, no `continue-on-error`, the install check's script and the
     uploads' inputs exactly, every template block and the republish job byte-identical to juniper-cascor's, and
     rehearsals that run each template step's own Python against a stand-in index and GitHub API on 127.0.0.1.
+- **The republish job copies nothing a release run did not pass, and the install check can mint no credential**
+  (rulings 1 and 2 of 2026-11-16, on the one-artifact publish above). This ports juniper-cascor's sweep of the
+  template (juniper-cascor#777) to `publish.yml`, template verbatim.
+  - **The install check has a job of its own** (ruling 2). `Verify the TestPyPI install` needs `Publish to TestPyPI`,
+    and `Publish to PyPI` needs both. It runs the package TestPyPI serves, so it holds `contents: read` alone: no
+    environment and no `id-token`. Until now it ran in the TestPyPI job, so the package it installed ran beside that
+    job's OIDC token-request variables. Its steps moved with it: `setup-python` 3.12, a sparse checkout of
+    `pyproject.toml` that keeps no credential (`persist-credentials: false`) in place of the full checkout, and the
+    same `--no-deps` install from TestPyPI alone, now run from `$RUNNER_TEMP`, with the version read from
+    `${GITHUB_WORKSPACE}/pyproject.toml`. The TestPyPI job drops its checkout and `setup-python` and holds
+    `id-token: write` alone, so the job that can mint runs only the template steps and the upload. The new job's
+    name holds "TestPyPI", so juniper-ml's release-train ceremony reads its failure as `HALT_TESTPYPI`.
+  - **The install check makes 5 tries, 10 s apart, then names the lag.** After its 30 s wait it had one try. After
+    the fifth failed install it fails with "… is not installable from TestPyPI after 5 tries (index lag?): Re-run
+    failed jobs; a real failure repeats". Its post-install check also requires the wheel to hold the
+    `juniper_data_client` package (`importlib.util.find_spec`, which finds it without running it), so a wheel that
+    lacks the package no longer passes on its metadata alone; it fails through `SystemExit`, which
+    `PYTHONOPTIMIZE` keeps.
+  - **The republish job refuses unless the tag's release run passed its TestPyPI jobs** (ruling 1).
+    `Find the release run's artifact` takes the tag's newest release run, whether or not its artifact has expired,
+    and refuses unless each of its jobs whose name holds "TestPyPI" concluded success in its latest attempt
+    (`GET actions/runs/{id}/jobs?filter=all`, each job's record with the highest attempt). It refuses as well when
+    the tag has no release run. Rung 1 of the recovery ladder could otherwise copy files whose install check had
+    failed, or never ran.
+  - **`PUBLISH_TAG_PREFIX: v`**, the template's third parameter. The republish job takes the version from the tag
+    only after it, so `publish.yml` refuses a `juniper-data-client-v<version>` tag before any request. The build
+    guard repeats it, since a job-level `if:` cannot read `env`, and its comment notes that a future `rc*` or `hf*`
+    tag convention must widen it.
+  - **Comments**, the template's: the republish job's no longer says the ceremony never reads a dispatch run (since
+    juniper-ml#2592 its monitor reads them and classifies a republish run by the run's own status), and the PyPI
+    job's says TestPyPI's record witnesses the files the run built, whose wheel the install check installed.
+  - **Docs**: `docs/REFERENCE.md` § Publishing and Recovery (0.5.5) describes the install job and its bounds, and
+    when rung 1 refuses: a TestPyPI job that failed on index lag is re-run ("Re-run failed jobs" uploads the same
+    bytes, which the index accepts), a failed install check needs a new patch version, a re-cut Release leaves the
+    tag with no run rung 1 accepts, a failed `Verify PyPI serves exactly these files` comes after the upload, and
+    each rung acts on the workflow file as of the tag.
+  - **Pins**, in `tests/test_publish_one_artifact.py` (118 cases, 69 before): the new job's name, `needs`,
+    permissions, steps and lack of an environment; the PyPI job needing both TestPyPI jobs; each job's keys, runner
+    and exact steps, as (name, action); no `continue-on-error` and no `if:` beyond the listed ones; no `PIP_*`
+    variable in any `env`; each build step's command; the install step's exact script and commands, run from
+    `$RUNNER_TEMP`; no `skip_existing` and no `attestations: false`; retention of exactly 90 days; the workflow's
+    name ending in "to PyPI", which juniper-ml's monitor requires; the tag prefix with its guard; and each action
+    pinned to one ref. The template blocks' and the republish job's digests are now taken with each `uses:` line
+    reduced to its action's name, so a Dependabot bump of an action's pin needs no re-port; juniper-ml's
+    cross-repository check of the ports still compares each `uses:` with the template's exact SHA. The rehearsals
+    run the new find step against the stand-in GitHub API (no release run, a failed upload, a failed or unfinished
+    install check, a failed build, a job a re-run carried over, a failure a re-run repaired, a "Re-run all jobs"
+    whose second attempt failed, each listing order, a listing over two pages, an older run that passed behind a
+    newer one that failed, and both tag prefixes), the fetch step against a release run and a TestPyPI that name
+    different files, the install step's own shell against stand-in `pip`, `python` and `sleep`, and its
+    post-install check against a stand-in installed wheel, with and without the package. A new module,
+    `tests/test_publish_docs_bounds.py`, reads the install check's tries, waits and lag error from the workflow and
+    requires `docs/REFERENCE.md` to state them, whitespace aside. Each of 38 edits to a copy of the
+    workflow or its doc, one at a time, fails the tests, and a Dependabot-style bump of every pin of one action
+    passes them.
 
 ## [0.6.0] - 2026-10-10
 
