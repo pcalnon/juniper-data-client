@@ -226,20 +226,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (rulings 1 and 2 of 2026-11-16, on the one-artifact publish above). This ports juniper-cascor's sweep of the
   template (juniper-cascor#777) to `publish.yml`, template verbatim.
   - **The install check has a job of its own** (ruling 2). `Verify the TestPyPI install` needs `Publish to TestPyPI`,
-    and `Publish to PyPI` needs both. It runs the package TestPyPI serves, so it holds `contents: read` alone: no
-    environment and no `id-token`. Until now it ran in the TestPyPI job, so the package it installed ran beside that
-    job's OIDC token-request variables. Its steps moved with it: `setup-python` 3.12, a sparse checkout of
-    `pyproject.toml` that keeps no credential (`persist-credentials: false`) in place of the full checkout, and the
-    same `--no-deps` install from TestPyPI alone, now run from `$RUNNER_TEMP`, with the version read from
-    `${GITHUB_WORKSPACE}/pyproject.toml`. The TestPyPI job drops its checkout and `setup-python` and holds
-    `id-token: write` alone, so the job that can mint runs only the template steps and the upload. The new job's
-    name holds "TestPyPI", so juniper-ml's release-train ceremony reads its failure as `HALT_TESTPYPI`.
+    and `Publish to PyPI` needs both. It installs the package TestPyPI serves, so it holds `contents: read` alone: no
+    environment and no `id-token`. Until now it ran in the TestPyPI job, so pip installed the package TestPyPI serves
+    in a job that held `id-token: write` (the check read its metadata alone, so none of its code ran). Its steps
+    moved with it: `setup-python` 3.12, a sparse checkout of `pyproject.toml` that keeps no credential
+    (`persist-credentials: false`) in place of the full checkout, and the same `--no-deps` install from TestPyPI
+    alone, now run from `$RUNNER_TEMP`, with the version read from `${GITHUB_WORKSPACE}/pyproject.toml`. The
+    TestPyPI job drops its checkout and `setup-python` and holds `id-token: write` alone, so the job that can mint
+    runs only the template steps and the upload. The new job's name holds "TestPyPI", so juniper-ml's release-train
+    ceremony reads its failure as `HALT_TESTPYPI`.
   - **The install check makes 5 tries, 10 s apart, then names the lag.** After its 30 s wait it had one try. After
     the fifth failed install it fails with "… is not installable from TestPyPI after 5 tries (index lag?): Re-run
     failed jobs; a real failure repeats". Its post-install check also requires the wheel to hold the
     `juniper_data_client` package (`importlib.util.find_spec`, which finds it without running it), so a wheel that
     lacks the package no longer passes on its metadata alone; it fails through `SystemExit`, which
-    `PYTHONOPTIMIZE` keeps.
+    `PYTHONOPTIMIZE` keeps. The line it prints before that check is juniper-cascor's neutral one,
+    `TestPyPI install <version> package at <origin>`, in place of `TestPyPI OK: v<version>`, so a refusal's log
+    says no "OK".
   - **The republish job refuses unless the tag's release run passed its TestPyPI jobs** (ruling 1).
     `Find the release run's artifact` takes the tag's newest release run, whether or not its artifact has expired,
     and refuses unless each of its jobs whose name holds "TestPyPI" concluded success in its latest attempt
@@ -256,8 +259,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Docs**: `docs/REFERENCE.md` § Publishing and Recovery (0.5.5) describes the install job and its bounds, and
     when rung 1 refuses: a TestPyPI job that failed on index lag is re-run ("Re-run failed jobs" uploads the same
     bytes, which the index accepts), a failed install check needs a new patch version, a re-cut Release leaves the
-    tag with no run rung 1 accepts, a failed `Verify PyPI serves exactly these files` comes after the upload, and
-    each rung acts on the workflow file as of the tag.
+    tag with no run rung 1 accepts, a failed `Verify PyPI serves exactly these files` comes after the upload (a
+    mismatch needs a new patch version; a check that gave up waiting is index lag, which "Re-run failed jobs"
+    repeats), and each rung acts on the workflow file as of the tag.
   - **Pins**, in `tests/test_publish_one_artifact.py` (118 cases, 69 before): the new job's name, `needs`,
     permissions, steps and lack of an environment; the PyPI job needing both TestPyPI jobs; each job's keys, runner
     and exact steps, as (name, action); no `continue-on-error` and no `if:` beyond the listed ones; no `PIP_*`

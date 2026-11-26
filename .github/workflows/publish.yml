@@ -355,7 +355,7 @@ jobs:
           # --no-deps. Verify the published artifact via its installed metadata, and that the wheel holds the
           # package: find_spec locates it without running it. SystemExit fails the step: PYTHONOPTIMIZE would
           # strip an assert statement.
-          python -c "import importlib.metadata as m, importlib.util as u; spec = u.find_spec('juniper_data_client'); origin = spec.origin if spec else None; print('TestPyPI OK: v' + m.version('juniper-data-client'), 'package at', origin); raise SystemExit(0 if origin else 'the installed wheel holds no juniper_data_client package')"
+          python -c "import importlib.metadata as m, importlib.util as u; spec = u.find_spec('juniper_data_client'); origin = spec.origin if spec else None; print('TestPyPI install', m.version('juniper-data-client'), 'package at', origin); raise SystemExit(0 if origin else 'the installed wheel holds no juniper_data_client package')"
 
   pypi:
     name: Publish to PyPI

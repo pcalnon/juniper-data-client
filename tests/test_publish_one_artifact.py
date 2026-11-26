@@ -246,7 +246,7 @@ done
 # --no-deps. Verify the published artifact via its installed metadata, and that the wheel holds the
 # package: find_spec locates it without running it. SystemExit fails the step: PYTHONOPTIMIZE would
 # strip an assert statement.
-python -c "import importlib.metadata as m, importlib.util as u; spec = u.find_spec('juniper_data_client'); origin = spec.origin if spec else None; print('TestPyPI OK: v' + m.version('juniper-data-client'), 'package at', origin); raise SystemExit(0 if origin else 'the installed wheel holds no juniper_data_client package')"
+python -c "import importlib.metadata as m, importlib.util as u; spec = u.find_spec('juniper_data_client'); origin = spec.origin if spec else None; print('TestPyPI install', m.version('juniper-data-client'), 'package at', origin); raise SystemExit(0 if origin else 'the installed wheel holds no juniper_data_client package')"
 """
 
 
@@ -273,8 +273,9 @@ def _retried_install(package: str, version: str) -> list[str]:
 
 #: The post-install check: the installed metadata's version, and the package found with an origin, without running it
 #: (an import would load numpy and requests, absent under --no-deps): the metadata alone would pass a wheel that lacks the
-#: package. It fails through SystemExit, which PYTHONOPTIMIZE keeps, where it strips an assert statement.
-POST_INSTALL_CHECK = f"import importlib.metadata as m, importlib.util as u; spec = u.find_spec('{DIST_NAME}'); origin = spec.origin if spec else None; print('TestPyPI OK: v' + m.version('{PACKAGE}'), 'package at', origin); raise SystemExit(0 if origin else 'the installed wheel holds no {DIST_NAME} package')"
+#: package. It fails through SystemExit, which PYTHONOPTIMIZE keeps, where it strips an assert statement. Its line is
+#: juniper-cascor's neutral one (publish-protocol.yml), printed before the check: it says no "OK".
+POST_INSTALL_CHECK = f"import importlib.metadata as m, importlib.util as u; spec = u.find_spec('{DIST_NAME}'); origin = spec.origin if spec else None; print('TestPyPI install', m.version('{PACKAGE}'), 'package at', origin); raise SystemExit(0 if origin else 'the installed wheel holds no {DIST_NAME} package')"
 #: workflow -> its install step's commands, exactly, comment and blank lines dropped: no ``exit 0``, ``trap``, earlier
 #: install or second VERSION can be added and none dropped, while a comment may change freely (``INSTALL_CHECK_RUN``
 #: pins those too).
@@ -549,7 +550,7 @@ class TestWiring:
         assert jobs["build"]["permissions"] == {"contents": "read", "actions": "read"}
         # The job that can mint runs the template steps and the upload alone: it checks out nothing and installs nothing.
         assert jobs[PUBLISHERS[workflow][2]]["permissions"] == {"id-token": "write"}
-        # The install check runs the package TestPyPI serves: it may read the repository, and nothing more.
+        # The install check installs the package TestPyPI serves: it may read the repository, and nothing more.
         assert jobs[INSTALL]["permissions"] == {"contents": "read"}
         assert jobs[PUBLISHERS[workflow][3]]["permissions"] == prod
         assert jobs[REPUBLISH]["permissions"] == {"actions": "read", "id-token": "write"}
@@ -857,7 +858,7 @@ class TestInstallCheckScript:
         files = {**INSTALLED_METADATA, f"{DIST_NAME}/__init__.py": 'raise SystemExit("the post-install check ran the package")\n'}
         proc = _run_check(_post_install_check("publish.yml"), tmp_path, files)
         assert proc.returncode == 0, proc.stdout + proc.stderr
-        assert proc.stdout == f"TestPyPI OK: v1.2.3 package at {tmp_path / 'site' / DIST_NAME / '__init__.py'}\n"
+        assert proc.stdout == f"TestPyPI install 1.2.3 package at {tmp_path / 'site' / DIST_NAME / '__init__.py'}\n"
 
     @pytest.mark.parametrize("optimize", [False, True], ids=["plain", "PYTHONOPTIMIZE"])
     @pytest.mark.parametrize("package_files", [{}, {f"{DIST_NAME}/README.txt": "not a package\n"}], ids=["no-package", "a-namespace-directory"])
@@ -868,6 +869,9 @@ class TestInstallCheckScript:
         proc = _run_check(_post_install_check("publish.yml"), tmp_path, {**INSTALLED_METADATA, **package_files}, optimize=optimize)
         assert proc.returncode == 1, proc.stdout + proc.stderr
         assert proc.stderr == f"the installed wheel holds no {DIST_NAME} package\n"
+        # The line printed before the check says no "OK": the log of a refusal must not read as a pass.
+        assert "OK" not in proc.stdout
+        assert proc.stdout == "TestPyPI install 1.2.3 package at None\n"
 
 
 class TestUnchanged:
