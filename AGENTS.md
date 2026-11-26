@@ -5,7 +5,7 @@
 **Author**: Paul Calnon
 **License**: MIT License
 **Version**: 0.6.0
-**Last Updated**: 2026-11-23
+**Last Updated**: 2026-11-26
 
 ---
 
@@ -43,6 +43,9 @@ pytest tests/ -v
 
 # Run all tests via script
 bash util/run_all_tests.bash
+
+# CI's tests, as CI runs them: docs/REFERENCE.md § Running Tests Locally
+python3 util/run_tests.py
 
 # Run unit tests only
 pytest tests/ -m unit -v
