@@ -37,8 +37,8 @@
 - [HTTP Behavior](#http-behavior)
 - [Environment Variables](#environment-variables)
 - [Coverage Gate Reference](#coverage-gate-reference)
-- [Test Markers and Commands](#test-markers-and-commands)
 - [Running Tests Locally](#running-tests-locally)
+- [Test Markers and Commands](#test-markers-and-commands)
 
 ---
 
@@ -1071,40 +1071,6 @@ Gate: 80% aggregate (override with `COVERAGE_FAIL_UNDER=<n>`). The script runs t
 
 ---
 
-## Test Markers and Commands
-
-### Running Tests
-
-```bash
-python3 util/run_tests.py           # CI's test lanes, as CI runs them: see Running Tests Locally
-pytest tests/ -v                    # All tests
-pytest tests/ -m unit -v            # Unit tests only
-pytest tests/ --cov=juniper_data_client --cov-report=term-missing --cov-fail-under=80
-```
-
-### Test Files
-
-| File | Purpose |
-|------|---------|
-| `tests/test_client.py` | Unit tests for `JuniperDataClient` (includes URL normalization) |
-| `tests/test_fake_client.py` | Tests for `FakeDataClient` testing utility |
-| `tests/test_contract.py` | `validate_npz_contract` raise sites |
-| `tests/test_retry_policy.py` | `RETRY_ALLOWED_METHODS` / `RETRYABLE_STATUS_CODES` |
-| `tests/test_gitleaks_pr_scan.py` | The `Security Scans` job's Gitleaks wiring and its pull-request scan step; see [Secret scan (Gitleaks)](#secret-scan-gitleaks) |
-| `tests/test_run_tests.py` | `util/run_tests.py`, the local test runner; see [Running Tests Locally](#running-tests-locally) |
-| `tests/conftest.py` | Shared fixtures |
-
-### Quality Checks
-
-```bash
-mypy juniper_data_client --strict    # Type checking
-flake8 juniper_data_client           # Linting
-black --check juniper_data_client    # Format check
-isort --check-only juniper_data_client  # Import order
-```
-
----
-
 ## Running Tests Locally
 
 `util/run_tests.py` runs any subset of this repo's tests with the commands CI runs. It reads them from the workflows on every run, so it cannot drift from CI. It installs nothing: install the `[test]` extra (`pip install -e ".[test]"`) and `juniper-ci-tools` (the per-file gate) into the environment you run it with.
@@ -1169,6 +1135,40 @@ The runner is a copy of juniper-recurrence's `util/run_tests.py` (itself a copy 
 
 ---
 
-**Last Updated:** November 26, 2026
+## Test Markers and Commands
+
+### Running Tests
+
+```bash
+python3 util/run_tests.py           # CI's test lanes, as CI runs them: see Running Tests Locally
+pytest tests/ -v                    # All tests
+pytest tests/ -m unit -v            # Unit tests only
+pytest tests/ --cov=juniper_data_client --cov-report=term-missing --cov-fail-under=80
+```
+
+### Test Files
+
+| File | Purpose |
+|------|---------|
+| `tests/test_client.py` | Unit tests for `JuniperDataClient` (includes URL normalization) |
+| `tests/test_fake_client.py` | Tests for `FakeDataClient` testing utility |
+| `tests/test_contract.py` | `validate_npz_contract` raise sites |
+| `tests/test_retry_policy.py` | `RETRY_ALLOWED_METHODS` / `RETRYABLE_STATUS_CODES` |
+| `tests/test_gitleaks_pr_scan.py` | The `Security Scans` job's Gitleaks wiring and its pull-request scan step; see [Secret scan (Gitleaks)](#secret-scan-gitleaks) |
+| `tests/test_run_tests.py` | `util/run_tests.py`, the local test runner; see [Running Tests Locally](#running-tests-locally) |
+| `tests/conftest.py` | Shared fixtures |
+
+### Quality Checks
+
+```bash
+mypy juniper_data_client --strict    # Type checking
+flake8 juniper_data_client           # Linting
+black --check juniper_data_client    # Format check
+isort --check-only juniper_data_client  # Import order
+```
+
+---
+
+**Last Updated:** November 16, 2026
 **Version:** 0.5.4
 **Maintainer:** Paul Calnon
