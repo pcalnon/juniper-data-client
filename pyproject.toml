@@ -45,6 +45,11 @@ test = [
     # to pin the sequence-safety verdict-step name. Without this the file is a
     # COLLECTION ERROR (`import yaml`), not a skip -- i.e. red CI, not silent.
     "pyyaml>=6.0.1",
+    # util/run_tests.py is a thin spec over juniper_ci_tools.run_tests, which ships in
+    # juniper-ci-tools 0.10, and tests/test_run_tests.py loads it: every job that collects
+    # tests/ needs it. The range is util/run_tests.py's ENGINE_REQUIREMENT, and ci.yml's
+    # later juniper-ci-tools installs ask for the same one (tests/test_run_tests.py checks).
+    "juniper-ci-tools>=0.10.0,<0.11.0",
 ]
 observability = [
     # METRICS-MON R4.6: opt-in to outbound X-Request-ID propagation

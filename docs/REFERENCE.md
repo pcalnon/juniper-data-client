@@ -2,9 +2,9 @@
 
 ## juniper-data-client Technical Reference
 
-**Version:** 0.5.5
+**Version:** 0.5.6
 **Status:** Active
-**Last Updated:** November 26, 2026
+**Last Updated:** November 28, 2026
 **Project:** Juniper - Dataset Service Client Library
 
 ---
@@ -1084,7 +1084,7 @@ Gate: 80% aggregate (override with `COVERAGE_FAIL_UNDER=<n>`). The script runs t
 
 ## Running Tests Locally
 
-`util/run_tests.py` runs any subset of this repo's tests with the commands CI runs. It reads them from the workflows on every run, so it cannot drift from CI. It installs nothing: install the `[test]` extra (`pip install -e ".[test]"`) and `juniper-ci-tools` (the per-file gate) into the environment you run it with.
+`util/run_tests.py` runs any subset of this repo's tests with the commands CI runs. It reads them from the workflows on every run, so it cannot drift from CI. It installs nothing: install the `[test]` extra (`pip install -e ".[test]"`) into the environment you run it with. The extra carries `juniper-ci-tools>=0.10.0,<0.11.0`, which is both the runner's engine and the per-file gate; without it the script prints the `pip install` that adds it and exits `3`.
 
 ```bash
 python3 util/run_tests.py                       # what a pull request gates on: unit-tests and integration-tests
@@ -1142,7 +1142,7 @@ Arguments after `--` go to the runner of the selected jobs (`-- -x -vv` for pyte
 
 **Exit codes.** `0` passed; `1` a job failed or timed out; `2` a usage error, or a workflow the runner cannot read; `3` nothing failed, but a lane could not run (UNAVAILABLE); `5` `-k` matched no test; `130` interrupted.
 
-The runner is a copy of juniper-recurrence's `util/run_tests.py` (itself a copy of juniper-ml's), adapted to this repo's workflows. Its own suite is `tests/test_run_tests.py`, which the `unit-tests` job collects with the rest of `tests/`. `util/run_coverage.bash` (`make coverage`) still reproduces the coverage floor on its own.
+`util/run_tests.py` is a thin spec over the shared engine, `juniper_ci_tools.run_tests` (juniper-ci-tools 0.10, whose canonical home is juniper-ml's `juniper-ci-tools/` tree). The spec declares this repo's lane strategies, the `OPT_IN` table and the `--help` text as a `RepoSpec`; everything that runs is the engine's. `tests/test_run_tests.py` pins the spec against the real workflows and this section, through the engine's public API only, and the `unit-tests` job collects it with the rest of `tests/`. The engine's own suite is juniper-ml's `juniper-ci-tools/tests/test_run_tests.py`. The `[test]` extra and the two later `juniper-ci-tools` installs in jobs that install it (the per-file gate's, and `dependency-docs`') ask for the same range, the script's `ENGINE_REQUIREMENT`, so no later step replaces the engine a job's tests ran with. `util/run_coverage.bash` (`make coverage`) still reproduces the coverage floor on its own.
 
 ---
 
@@ -1180,6 +1180,6 @@ isort --check-only juniper_data_client  # Import order
 
 ---
 
-**Last Updated:** November 26, 2026
-**Version:** 0.5.5
+**Last Updated:** November 28, 2026
+**Version:** 0.5.6
 **Maintainer:** Paul Calnon
