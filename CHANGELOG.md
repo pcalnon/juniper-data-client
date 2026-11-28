@@ -51,6 +51,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `docs/REFERENCE.md` describes the legs.
 
 ### Changed
+- **`util/run_tests.py` is a thin spec over `juniper_ci_tools.run_tests`, the shared engine in juniper-ci-tools 0.10.**
+  Step 4 of juniper-ml's `notes/JUNIPER_2026-11-26_JUNIPER-ECOSYSTEM_RUN-TESTS-ENGINE-EXTRACTION-PROPOSAL.md` (option A,
+  which the Overtoad ruled on 2026-11-26). The 2,533-line copy becomes a 140-line `RepoSpec`: every workflow job that
+  runs pytest is a lane named by its job id (`unit` for `unit-tests`), with the `OPT_IN` table and the `--help` text
+  unchanged. Everything that runs is the engine's.
+  - The `[test]` extra gains `juniper-ci-tools>=0.10.0,<0.11.0`, the script's `ENGINE_REQUIREMENT`: every job that
+    collects `tests/` installs `.[test]`, and `tests/test_run_tests.py` loads the runner. The per-file gate and
+    `dependency-docs` in `ci.yml` install the same range after `.[test]`, so neither puts 0.9.x back. Without the
+    engine the script prints the `pip install` that adds it and exits 3.
+  - What changed, measured against `main`'s copy with juniper-ml's
+    `util/ad-hoc/2026-11-26_run_tests_engine_equivalence.py` over 27 cases: every `--dry-run` is identical, and 24 of
+    the 27 cases are identical. `--help` describes `--changed` as the engine does, and two messages are reworded.
+    The `[test]` extra's new requirement adds one to the preflight's counts. `--list --changed` on this branch
+    selects the same jobs as the copy did.
+  - `tests/test_run_tests.py` (18 tests, was 62) pins the spec against the real workflows and `docs/REFERENCE.md`
+    through the engine's public API only, and checks that every install asks for one range. Its fake-checkout and
+    parsing tests moved with the engine to juniper-ml's `juniper-ci-tools/tests/test_run_tests.py`.
+  - Measured locally under Python 3.14.4: `all` passed in 1m00s. `unit-tests` had 682 passed and 19 skipped, with both
+    coverage gates; `integration-tests` had 701 deselected, so exit 5 passed.
 - **`agents-md-touch-up.yml` pins `actions/checkout` to a commit SHA (Overtoad ruling 2026-11-03).** It checked out with
   the `v7.0.1` tag, the only tag-only `actions/checkout` in `.github/workflows/`. It now uses
   `3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1`, the commit that tag resolves to and the pin every other
